@@ -83,7 +83,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int cubeLightPosParam;
 
   private int floorPositionParam;
-  private int floorNormalParam;
+  private int floorCoordParam;
   private int floorColorParam;
   private int floorModelParam;
   private int floorModelViewParam;
@@ -100,7 +100,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   private int score = 0;
   private float objectDistance = 12f;
-  private float floorDepth = 20f;
+  private float floorDepth = 1.5f;
 
   private Vibrator vibrator;
   private CardboardOverlayView overlayView;
@@ -232,10 +232,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     floorVertices.put(WorldLayoutData.FLOOR_COORDS);
     floorVertices.position(0);
 
-    ByteBuffer bbFloorNormals = ByteBuffer.allocateDirect(WorldLayoutData.FLOOR_NORMALS.length * 4);
-    bbFloorNormals.order(ByteOrder.nativeOrder());
-    floorNormals = bbFloorNormals.asFloatBuffer();
-    floorNormals.put(WorldLayoutData.FLOOR_NORMALS);
+    ByteBuffer bbFloorCoords = ByteBuffer.allocateDirect(WorldLayoutData.FLOOR_COORDSS.length * 4);
+    bbFloorCoords.order(ByteOrder.nativeOrder());
+    floorNormals = bbFloorCoords.asFloatBuffer();
+    floorNormals.put(WorldLayoutData.FLOOR_COORDSS);
     floorNormals.position(0);
 
     ByteBuffer bbFloorColors = ByteBuffer.allocateDirect(WorldLayoutData.FLOOR_COLORS.length * 4);
@@ -244,6 +244,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     floorColors.put(WorldLayoutData.FLOOR_COLORS);
     floorColors.position(0);
 
+    int gridvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.grid_vertex);
     int vertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.light_vertex);
     int gridShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.grid_fragment);
     int passthroughShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.passthrough_fragment);
@@ -272,7 +273,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Cube program params");
 
     floorProgram = GLES20.glCreateProgram();
-    GLES20.glAttachShader(floorProgram, vertexShader);
+    GLES20.glAttachShader(floorProgram, gridvertexShader);
     GLES20.glAttachShader(floorProgram, gridShader);
     GLES20.glLinkProgram(floorProgram);
     GLES20.glUseProgram(floorProgram);
@@ -280,16 +281,16 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Floor program");
 
     floorModelParam = GLES20.glGetUniformLocation(floorProgram, "u_Model");
-    floorModelViewParam = GLES20.glGetUniformLocation(floorProgram, "u_MVMatrix");
+//    floorModelViewParam = GLES20.glGetUniformLocation(floorProgram, "u_MVMatrix");
     floorModelViewProjectionParam = GLES20.glGetUniformLocation(floorProgram, "u_MVP");
     floorLightPosParam = GLES20.glGetUniformLocation(floorProgram, "u_LightPos");
 
     floorPositionParam = GLES20.glGetAttribLocation(floorProgram, "a_Position");
-    floorNormalParam = GLES20.glGetAttribLocation(floorProgram, "a_Normal");
+    floorCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
     floorColorParam = GLES20.glGetAttribLocation(floorProgram, "a_Color");
 
     GLES20.glEnableVertexAttribArray(floorPositionParam);
-    GLES20.glEnableVertexAttribArray(floorNormalParam);
+    GLES20.glEnableVertexAttribArray(floorCoordParam);
     GLES20.glEnableVertexAttribArray(floorColorParam);
 
     checkGLError("Floor program params");
@@ -421,6 +422,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
    * look strange.
    */
   public void drawFloor() {
+    GLES20.glDisable(GLES20.GL_CULL_FACE);
     GLES20.glUseProgram(floorProgram);
 
     // Set ModelView, MVP, position, normals, and color.
@@ -431,11 +433,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         modelViewProjection, 0);
     GLES20.glVertexAttribPointer(floorPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
         false, 0, floorVertices);
-    GLES20.glVertexAttribPointer(floorNormalParam, 3, GLES20.GL_FLOAT, false, 0,
+    GLES20.glVertexAttribPointer(floorCoordParam, 3, GLES20.GL_FLOAT, false, 0,
         floorNormals);
     GLES20.glVertexAttribPointer(floorColorParam, 4, GLES20.GL_FLOAT, false, 0, floorColors);
 
-    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6*6);
 
     checkGLError("drawing floor");
   }
