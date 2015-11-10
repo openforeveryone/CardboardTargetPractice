@@ -26,6 +26,8 @@ import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Vibrator;
 import android.util.Log;
 
@@ -97,10 +99,21 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] modelViewProjection;
   private float[] modelView;
   private float[] modelFloor;
+  private float[] modelProjectile;
 
+  private float[] projectilePos = {1,0,0,1};
+  private float[] projectileVelocity = {1,1,0,0};
+  private float[] cubePos = {0,0,0,0};
+
+  private float[] forwardVector = {0,0,0};
+  
   private int score = 0;
-  private float objectDistance = 12f;
+  private int projectiles = 10;
+  private int rays = 10;
+  private float objectDistance = 3.5f;
   private float floorDepth = 1.5f;
+
+  private boolean out = true;
 
   private Vibrator vibrator;
   private CardboardOverlayView overlayView;
@@ -170,11 +183,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     modelView = new float[16];
     modelFloor = new float[16];
     headView = new float[16];
+    modelProjectile = new float[16];
     vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
 
     overlayView = (CardboardOverlayView) findViewById(R.id.overlay);
-    overlayView.show3DToast("Pull the magnet when you find an object.");
+    overlayView.show3DToast("Pull the magnet when you find an object.", 5000);
   }
 
   @Override
@@ -302,6 +316,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.setIdentityM(modelFloor, 0);
     Matrix.translateM(modelFloor, 0, 0, -floorDepth, 0); // Floor appears below user.
 
+    //No it does not.
+    hideObject();
+
     checkGLError("onSurfaceCreated");
   }
 
@@ -342,7 +359,39 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.setLookAtM(camera, 0, 0.0f, 0.0f, CAMERA_Z, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     headTransform.getHeadView(headView, 0);
+    headTransform.getForwardVector(forwardVector, 0);
 
+    for(int i=0; i<3; i++)
+      projectilePos[i]+=projectileVelocity[i]/60.0f;
+    projectileVelocity[1]-=9.81/60.0f;
+
+    boolean hit = true;
+    for(int i=0; i<3; i++)
+      if (Math.abs(projectilePos[i]-cubePos[i])>0.2f) hit = false;
+    if (hit) {
+      score+=2;
+      Log.i(TAG, "Object Hit. Score: " + score);
+      if (projectiles>0)
+        show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " left", 4000);
+      else
+        show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 6000);
+      hideObject();
+      //Setting out here prevents loosing point when this poj hits a wall.
+      out=true;
+    }
+    if (!out) {
+      if (Math.abs(projectilePos[0]) > 4.0f) out = true;
+      if (projectilePos[1] < -1.5f) out = true;
+      if (Math.abs(projectilePos[2]) > 4.0f) out = true;
+      if (out) {
+        score--;
+        if (projectiles>0)
+          show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " left", 4000);
+        else
+          show3DToast("You missed it.\nScore = " + score + "\n Now fire streight at it.", 6000);
+        Log.i(TAG, "Object Missed. Score: " + score);
+      }
+    }
     checkGLError("onReadyToDraw");
   }
 
@@ -370,6 +419,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelView, 0, view, 0, modelCube, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0);
     drawCube();
+
+      Matrix.setIdentityM(modelProjectile, 0);
+      Matrix.translateM(modelProjectile, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
+      Matrix.multiplyMM(modelView, 0, view, 0, modelProjectile, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0);
+
+      drawProjectile();
 
     // Set modelView for the floor, so we draw floor in the correct location
     Matrix.multiplyMM(modelView, 0, view, 0, modelFloor, 0);
@@ -400,7 +456,35 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     // Set the position of the cube
     GLES20.glVertexAttribPointer(cubePositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
-        false, 0, cubeVertices);
+            false, 0, cubeVertices);
+
+    // Set the ModelViewProjection matrix in the shader.
+    GLES20.glUniformMatrix4fv(cubeModelViewProjectionParam, 1, false, modelViewProjection, 0);
+
+    // Set the normal positions of the cube, again for shading
+    GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
+    GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0, cubeColors);
+
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
+    checkGLError("Drawing cube");
+  }
+
+  public void drawProjectile() {
+
+
+    GLES20.glUseProgram(cubeProgram);
+
+    GLES20.glUniform3fv(cubeLightPosParam, 1, lightPosInEyeSpace, 0);
+
+    // Set the Model in the shader, used to calculate lighting
+    GLES20.glUniformMatrix4fv(cubeModelParam, 1, false, modelProjectile, 0);
+
+    // Set the ModelView in the shader, used to calculate lighting
+    GLES20.glUniformMatrix4fv(cubeModelViewParam, 1, false, modelView, 0);
+
+    // Set the position of the cube
+    GLES20.glVertexAttribPointer(cubePositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, 0, cubeVertices);
 
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(cubeModelViewProjectionParam, 1, false, modelViewProjection, 0);
@@ -408,7 +492,34 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the normal positions of the cube, again for shading
     GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
     GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0,
-        isLookingAtObject() ? cubeFoundColors : cubeColors);
+            isLookingAtObject() ? cubeFoundColors : cubeColors);
+
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
+    checkGLError("Drawing cube");
+  }
+
+  public void drawBeam() {
+    GLES20.glUseProgram(cubeProgram);
+
+    GLES20.glUniform3fv(cubeLightPosParam, 1, lightPosInEyeSpace, 0);
+
+    // Set the Model in the shader, used to calculate lighting
+    GLES20.glUniformMatrix4fv(cubeModelParam, 1, false, modelCube, 0);
+
+    // Set the ModelView in the shader, used to calculate lighting
+    GLES20.glUniformMatrix4fv(cubeModelViewParam, 1, false, modelView, 0);
+
+    // Set the position of the cube
+    GLES20.glVertexAttribPointer(cubePositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, 0, cubeVertices);
+
+    // Set the ModelViewProjection matrix in the shader.
+    GLES20.glUniformMatrix4fv(cubeModelViewProjectionParam, 1, false, modelViewProjection, 0);
+
+    // Set the normal positions of the cube, again for shading
+    GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
+    GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0,
+            isLookingAtObject() ? cubeFoundColors : cubeColors);
 
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
     checkGLError("Drawing cube");
@@ -437,7 +548,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         floorNormals);
     GLES20.glVertexAttribPointer(floorColorParam, 4, GLES20.GL_FLOAT, false, 0, floorColors);
 
-    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6*6);
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6 * 6);
 
     checkGLError("drawing floor");
   }
@@ -449,16 +560,23 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   public void onCardboardTrigger() {
     Log.i(TAG, "onCardboardTrigger");
 
-    if (isLookingAtObject()) {
-      score++;
-      overlayView.show3DToast("Found it! Look around for another one.\nScore = " + score);
-      hideObject();
-    } else {
-      overlayView.show3DToast("Look around to find the object!");
+//    if (isLookingAtObject()) {
+//      score++;
+//      overlayView.show3DToast("Found it! Look around for another one.\nScore = " + score);
+//      hideObject();
+//    } else {
+//      overlayView.show3DToast("Look around to find the object!");
+//    }
+//    vibrator.vibrate(50);
+    if (out && projectiles > 0) {
+      projectilePos = new float[]{0, -.75f, 0, 1};
+      projectileVelocity = new float[]{-forwardVector[0] * 5, (1 - forwardVector[1]) * 5, forwardVector[2] * 5, 0};
+      Log.i(TAG, "Forward Vect: " + forwardVector[0] + " " + forwardVector[1] + " " + forwardVector[2]);
+      out = false;
+      projectiles--;
     }
-
-    // Always give user feedback.
-    vibrator.vibrate(50);
+      // Always give user feedback.
+      vibrator.vibrate(20);
   }
 
   /**
@@ -468,26 +586,31 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
    */
   private void hideObject() {
     float[] rotationMatrix = new float[16];
-    float[] posVec = new float[4];
+    float[] posVeca = {0,0,-1,1};
+    float[] posVec = {0,0,0,1};
 
     // First rotate in XZ plane, between 90 and 270 deg away, and scale so that we vary
     // the object's distance from the user.
-    float angleXZ = (float) Math.random() * 180 + 90;
+    float angleXZ = (float) Math.random() * 180 - 90;
     Matrix.setRotateM(rotationMatrix, 0, angleXZ, 0f, 1f, 0f);
-    float oldObjectDistance = objectDistance;
-    objectDistance = (float) Math.random() * 15 + 5;
-    float objectScalingFactor = objectDistance / oldObjectDistance;
+//    float oldObjectDistance = objectDistance;
+    objectDistance = (float) Math.random() * 3 + 1;
+
+    float objectScalingFactor = objectDistance;// / oldObjectDistance;
     Matrix.scaleM(rotationMatrix, 0, objectScalingFactor, objectScalingFactor,
         objectScalingFactor);
-    Matrix.multiplyMV(posVec, 0, rotationMatrix, 0, modelCube, 12);
+    Matrix.multiplyMV(posVec, 0, rotationMatrix, 0, posVeca, 0);
 
     // Now get the up or down angle, between -20 and 20 degrees.
-    float angleY = (float) Math.random() * 80 - 40; // Angle in Y plane, between -40 and 40.
-    angleY = (float) Math.toRadians(angleY);
-    float newY = (float) Math.tan(angleY) * objectDistance;
-
+//    float angleY = (float) Math.random() * 80 - 40; // Angle in Y plane, between -40 and 40.
+//    angleY = (float) Math.toRadians(angleY);
+//    float newY = (float) Math.tan(angleY) * objectDistance;
+    float newY = (float) Math.random() * (floorDepth -0.04f) * 2 - (floorDepth -0.04f);
+    Log.i(TAG, "hideObject() Radi: XZ: " + angleXZ + "  R: " + objectDistance);
+    Log.i(TAG, "hideObject() Cart:  X: " + posVec[0] + "  Y(Height): " + newY + "  Z: " + posVec[2]);
     Matrix.setIdentityM(modelCube, 0);
     Matrix.translateM(modelCube, 0, posVec[0], newY, posVec[2]);
+    cubePos = new float[] {posVec[0], newY, posVec[2]};
   }
 
   /**
@@ -508,4 +631,33 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     return Math.abs(pitch) < PITCH_LIMIT && Math.abs(yaw) < YAW_LIMIT;
   }
+
+  TextViewUpdater textViewUpdater = new TextViewUpdater();
+  Handler textViewUpdaterHandler = new Handler(Looper.getMainLooper());
+
+  private class TextViewUpdater implements Runnable{
+    private String txt;
+    private int time;
+    @Override
+    public void run() {
+      overlayView.show3DToast(txt, time);
+    }
+    public void setText(String txt){
+      this.txt = txt;
+    }
+    public void setTime(int time){
+      this.time = time;
+    }
+  }
+
+  private void show3DToast(String message) {
+    show3DToast(message, 5000);
+  }
+
+  private void show3DToast(String message, int time) {
+    textViewUpdater.setText(message);
+    textViewUpdater.setTime(time);
+    textViewUpdaterHandler.post(textViewUpdater);
+  }
+
 }

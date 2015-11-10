@@ -63,9 +63,10 @@ public class CardboardOverlayView extends LinearLayout {
     textFadeAnimation.setDuration(5000);
   }
 
-  public void show3DToast(String message) {
+  public void show3DToast(String message, int time) {
     setText(message);
     setTextAlpha(1f);
+    textFadeAnimation.setDuration(time);
     textFadeAnimation.setAnimationListener(new EndAnimationListener() {
       @Override
       public void onAnimationEnd(Animation animation) {
