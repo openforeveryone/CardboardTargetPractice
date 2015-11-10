@@ -73,6 +73,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private FloatBuffer cubeFoundColors;
   private FloatBuffer cubeNormals;
 
+  private FloatBuffer rayVertices;
+  private FloatBuffer rayTXCoords;
+
   private int cubeProgram;
   private int floorProgram;
 
@@ -104,6 +107,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] projectilePos = {1,0,0,1};
   private float[] projectileVelocity = {1,1,0,0};
   private float[] cubePos = {0,0,0,0};
+
 
   private float[] forwardVector = {0,0,0};
   
@@ -214,11 +218,18 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Log.i(TAG, "onSurfaceCreated");
     GLES20.glClearColor(0.1f, 0.1f, 0.1f, 0.5f); // Dark background so text shows up well.
 
+
     ByteBuffer bbVertices = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COORDS.length * 4);
     bbVertices.order(ByteOrder.nativeOrder());
     cubeVertices = bbVertices.asFloatBuffer();
     cubeVertices.put(WorldLayoutData.CUBE_COORDS);
     cubeVertices.position(0);
+
+//    ByteBuffer bbVertices = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COORDS.length * 4);
+//    bbVertices.order(ByteOrder.nativeOrder());
+//    cubeVertices = bbVertices.asFloatBuffer();
+//    cubeVertices.put(WorldLayoutData.CUBE_COORDS);
+//    cubeVertices.position(0);
 
     ByteBuffer bbColors = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COLORS.length * 4);
     bbColors.order(ByteOrder.nativeOrder());
@@ -560,20 +571,33 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   public void onCardboardTrigger() {
     Log.i(TAG, "onCardboardTrigger");
 
-//    if (isLookingAtObject()) {
-//      score++;
-//      overlayView.show3DToast("Found it! Look around for another one.\nScore = " + score);
-//      hideObject();
-//    } else {
-//      overlayView.show3DToast("Look around to find the object!");
-//    }
+
 //    vibrator.vibrate(50);
     if (out && projectiles > 0) {
+      Log.i(TAG, "Throwing");
       projectilePos = new float[]{0, -.75f, 0, 1};
       projectileVelocity = new float[]{-forwardVector[0] * 5, (1 - forwardVector[1]) * 5, forwardVector[2] * 5, 0};
       Log.i(TAG, "Forward Vect: " + forwardVector[0] + " " + forwardVector[1] + " " + forwardVector[2]);
       out = false;
       projectiles--;
+    }
+    if (out && projectiles == 0 && rays > 0)
+    {
+      Log.i(TAG, "Firing");
+      rays--;
+      if (isLookingAtObject()) {
+        score+=2;
+        if (rays>0)
+          show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 4000);
+        else
+          show3DToast("You hit it.\nScore = " + score, 6000);
+        hideObject();
+      } else {
+        if (rays>0)
+          show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 4000);
+        else
+          show3DToast("You missed it.\nScore = " + score, 6000);
+      }
     }
       // Always give user feedback.
       vibrator.vibrate(20);
