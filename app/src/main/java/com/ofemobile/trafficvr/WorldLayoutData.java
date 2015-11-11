@@ -373,4 +373,15 @@ public final class WorldLayoutData {
 //      0.0f, 0.3398f, 0.9023f, 1.0f,
 //      0.0f, 0.3398f, 0.9023f, 1.0f,
 //  };
+
+    public static final float[] BEAM_VERTS = new float[]{
+            0f, -0.75f, 0f,
+            -10f, 0, 10f,
+    };
+
+
+//    public static final float[] BEAM_TCCOORDS = new float[]{
+//            0f, -0.75f, 0f,
+//            -10f, 0, 10f,
+//    };
 }

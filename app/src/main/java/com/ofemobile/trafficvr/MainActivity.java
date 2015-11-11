@@ -73,11 +73,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private FloatBuffer cubeFoundColors;
   private FloatBuffer cubeNormals;
 
-  private FloatBuffer rayVertices;
-  private FloatBuffer rayTXCoords;
+  private FloatBuffer beamVertices;
+  private FloatBuffer beamTXCoords;
 
   private int cubeProgram;
   private int floorProgram;
+  private int beamProgram;
 
   private int cubePositionParam;
   private int cubeNormalParam;
@@ -95,6 +96,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int floorModelViewProjectionParam;
   private int floorLightPosParam;
 
+  private int beamModelViewProjectionParam;
+  private int beamPositionParam;
+  private int beamCoordParam;
+
   private float[] modelCube;
   private float[] camera;
   private float[] view;
@@ -103,6 +108,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] modelView;
   private float[] modelFloor;
   private float[] modelProjectile;
+  private float[] modelBeam;
 
   private float[] projectilePos = {1,0,0,1};
   private float[] projectileVelocity = {1,1,0,0};
@@ -188,6 +194,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     modelFloor = new float[16];
     headView = new float[16];
     modelProjectile = new float[16];
+    modelBeam = new float[16];
     vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
 
@@ -218,6 +225,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Log.i(TAG, "onSurfaceCreated");
     GLES20.glClearColor(0.1f, 0.1f, 0.1f, 0.5f); // Dark background so text shows up well.
 
+    ByteBuffer bbBeamVertices = ByteBuffer.allocateDirect(WorldLayoutData.BEAM_VERTS.length * 4);
+    bbBeamVertices.order(ByteOrder.nativeOrder());
+    beamVertices = bbBeamVertices.asFloatBuffer();
+    beamVertices.put(WorldLayoutData.BEAM_VERTS);
+    beamVertices.position(0);
 
     ByteBuffer bbVertices = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COORDS.length * 4);
     bbVertices.order(ByteOrder.nativeOrder());
@@ -225,11 +237,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     cubeVertices.put(WorldLayoutData.CUBE_COORDS);
     cubeVertices.position(0);
 
-//    ByteBuffer bbVertices = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COORDS.length * 4);
-//    bbVertices.order(ByteOrder.nativeOrder());
-//    cubeVertices = bbVertices.asFloatBuffer();
-//    cubeVertices.put(WorldLayoutData.CUBE_COORDS);
-//    cubeVertices.position(0);
 
     ByteBuffer bbColors = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COLORS.length * 4);
     bbColors.order(ByteOrder.nativeOrder());
@@ -269,6 +276,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     floorColors.put(WorldLayoutData.FLOOR_COLORS);
     floorColors.position(0);
 
+    int beamvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.beam_vertex);
     int gridvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.grid_vertex);
     int vertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.light_vertex);
     int gridShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.grid_fragment);
@@ -305,6 +313,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     checkGLError("Floor program");
 
+
     floorModelParam = GLES20.glGetUniformLocation(floorProgram, "u_Model");
 //    floorModelViewParam = GLES20.glGetUniformLocation(floorProgram, "u_MVMatrix");
     floorModelViewProjectionParam = GLES20.glGetUniformLocation(floorProgram, "u_MVP");
@@ -320,15 +329,27 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     checkGLError("Floor program params");
 
+    beamProgram = GLES20.glCreateProgram();
+    GLES20.glAttachShader(beamProgram, beamvertexShader);
+    GLES20.glAttachShader(beamProgram, passthroughShader);
+    GLES20.glLinkProgram(beamProgram);
+    GLES20.glUseProgram(beamProgram);
+    checkGLError("Beam program");
+
+    beamModelViewProjectionParam = GLES20.glGetUniformLocation(beamProgram, "u_MVP");
+    beamPositionParam = GLES20.glGetAttribLocation(floorProgram, "a_Position");
+    beamCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
+
+    checkGLError("Beam program params");
+
     // Object first appears directly in front of user.
     Matrix.setIdentityM(modelCube, 0);
     Matrix.translateM(modelCube, 0, 0, 0, -objectDistance);
+    //No it does not.
+    hideObject();
 
     Matrix.setIdentityM(modelFloor, 0);
     Matrix.translateM(modelFloor, 0, 0, -floorDepth, 0); // Floor appears below user.
-
-    //No it does not.
-    hideObject();
 
     checkGLError("onSurfaceCreated");
   }
@@ -431,23 +452,31 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0);
     drawCube();
 
-      Matrix.setIdentityM(modelProjectile, 0);
-      Matrix.translateM(modelProjectile, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
-      Matrix.multiplyMM(modelView, 0, view, 0, modelProjectile, 0);
-      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0);
+    Matrix.setIdentityM(modelProjectile, 0);
+    Matrix.translateM(modelProjectile, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
+    Matrix.multiplyMM(modelView, 0, view, 0, modelProjectile, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0);
 
       drawProjectile();
 
     // Set modelView for the floor, so we draw floor in the correct location
     Matrix.multiplyMM(modelView, 0, view, 0, modelFloor, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-      modelView, 0);
+            modelView, 0);
     drawFloor();
+
+    Matrix.setIdentityM(modelBeam, 0);
+//    Matrix.translateM(modelBeam, 0, 0, .1f, 0);
+    Matrix.multiplyMM(modelView, 0, view, 0, modelBeam, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+            modelView, 0);
+    drawBeam();
   }
 
   @Override
   public void onFinishFrame(Viewport viewport) {
   }
+
 
   /**
    * Draw the cube.
@@ -502,38 +531,25 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     // Set the normal positions of the cube, again for shading
     GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
-    GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0,
-            isLookingAtObject() ? cubeFoundColors : cubeColors);
+    GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0, cubeFoundColors);
 
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
     checkGLError("Drawing cube");
   }
 
   public void drawBeam() {
-    GLES20.glUseProgram(cubeProgram);
+    GLES20.glUseProgram(beamProgram);
 
-    GLES20.glUniform3fv(cubeLightPosParam, 1, lightPosInEyeSpace, 0);
-
-    // Set the Model in the shader, used to calculate lighting
-    GLES20.glUniformMatrix4fv(cubeModelParam, 1, false, modelCube, 0);
-
-    // Set the ModelView in the shader, used to calculate lighting
-    GLES20.glUniformMatrix4fv(cubeModelViewParam, 1, false, modelView, 0);
-
-    // Set the position of the cube
-    GLES20.glVertexAttribPointer(cubePositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
-            false, 0, cubeVertices);
+    // Set the position of the beam
+    GLES20.glVertexAttribPointer(beamPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, 0, beamVertices);
 
     // Set the ModelViewProjection matrix in the shader.
-    GLES20.glUniformMatrix4fv(cubeModelViewProjectionParam, 1, false, modelViewProjection, 0);
+    GLES20.glUniformMatrix4fv(beamModelViewProjectionParam, 1, false, modelViewProjection, 0);
 
-    // Set the normal positions of the cube, again for shading
-    GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
-    GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0,
-            isLookingAtObject() ? cubeFoundColors : cubeColors);
-
-    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
-    checkGLError("Drawing cube");
+    GLES20.glLineWidth(2);
+    GLES20.glDrawArrays(GLES20.GL_LINES, 0, 2);
+    checkGLError("Drawing Beam");
   }
 
   /**
