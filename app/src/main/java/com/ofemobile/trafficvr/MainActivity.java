@@ -23,7 +23,12 @@ import com.google.vrtoolkit.cardboard.HeadTransform;
 import com.google.vrtoolkit.cardboard.Viewport;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.opengl.GLES20;
+import android.opengl.GLUtils;
 import android.opengl.Matrix;
 import android.os.Bundle;
 import android.os.Handler;
@@ -38,6 +43,7 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.microedition.khronos.egl.EGLConfig;
 
@@ -76,9 +82,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private FloatBuffer beamVertices;
   private FloatBuffer beamTXCoords;
 
+  private FloatBuffer rectVertices;
+
   private int cubeProgram;
   private int floorProgram;
   private int beamProgram;
+  private int txProgram;
 
   private int cubePositionParam;
   private int cubeNormalParam;
@@ -200,6 +209,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     overlayView = (CardboardOverlayView) findViewById(R.id.overlay);
     overlayView.show3DToast("Pull the magnet when you find an object.", 5000);
+
+    Log.i(TAG, "onCreate");
+    if (Looper.myLooper() == Looper.getMainLooper())
+      Log.i(TAG, "In UI thread");
+    else
+      Log.i(TAG, "Not in UI thread");
+
   }
 
   @Override
@@ -223,6 +239,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   @Override
   public void onSurfaceCreated(EGLConfig config) {
     Log.i(TAG, "onSurfaceCreated");
+
     GLES20.glClearColor(0.1f, 0.1f, 0.1f, 0.5f); // Dark background so text shows up well.
 
     ByteBuffer bbBeamVertices = ByteBuffer.allocateDirect(WorldLayoutData.BEAM_VERTS.length * 4);
@@ -231,12 +248,17 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     beamVertices.put(WorldLayoutData.BEAM_VERTS);
     beamVertices.position(0);
 
+    ByteBuffer bbrVertices = ByteBuffer.allocateDirect(WorldLayoutData.RECT_COORDS.length * 4);
+    bbrVertices.order(ByteOrder.nativeOrder());
+    rectVertices = bbrVertices.asFloatBuffer();
+    rectVertices.put(WorldLayoutData.RECT_COORDS);
+    rectVertices.position(0);
+
     ByteBuffer bbVertices = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COORDS.length * 4);
     bbVertices.order(ByteOrder.nativeOrder());
     cubeVertices = bbVertices.asFloatBuffer();
     cubeVertices.put(WorldLayoutData.CUBE_COORDS);
     cubeVertices.position(0);
-
 
     ByteBuffer bbColors = ByteBuffer.allocateDirect(WorldLayoutData.CUBE_COLORS.length * 4);
     bbColors.order(ByteOrder.nativeOrder());
@@ -281,6 +303,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     int vertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.light_vertex);
     int gridShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.grid_fragment);
     int passthroughShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.passthrough_fragment);
+    int textureFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.texture_fragment);
 
     cubeProgram = GLES20.glCreateProgram();
     GLES20.glAttachShader(cubeProgram, vertexShader);
@@ -321,11 +344,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     floorPositionParam = GLES20.glGetAttribLocation(floorProgram, "a_Position");
     floorCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
-    floorColorParam = GLES20.glGetAttribLocation(floorProgram, "a_Color");
+//    floorColorParam = GLES20.glGetAttribLocation(floorProgram, "a_Color");
 
     GLES20.glEnableVertexAttribArray(floorPositionParam);
     GLES20.glEnableVertexAttribArray(floorCoordParam);
-    GLES20.glEnableVertexAttribArray(floorColorParam);
+//    GLES20.glEnableVertexAttribArray(floorColorParam);
 
     checkGLError("Floor program params");
 
@@ -337,9 +360,23 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Beam program");
 
     beamModelViewProjectionParam = GLES20.glGetUniformLocation(beamProgram, "u_MVP");
-    beamPositionParam = GLES20.glGetAttribLocation(floorProgram, "a_Position");
-    beamCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
+    beamPositionParam = GLES20.glGetAttribLocation(beamProgram, "a_Position");
+    //beamCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
+    GLES20.glEnableVertexAttribArray(beamPositionParam);
+    checkGLError("Beam program params");
 
+
+    txProgram = GLES20.glCreateProgram();
+    GLES20.glAttachShader(txProgram, vertexShader);
+    GLES20.glAttachShader(txProgram, textureFragShader);
+    GLES20.glLinkProgram(txProgram);
+    GLES20.glUseProgram(txProgram);
+    checkGLError("Beam program");
+
+    beamModelViewProjectionParam = GLES20.glGetUniformLocation(txProgram, "u_MVP");
+    beamPositionParam = GLES20.glGetAttribLocation(txProgram, "a_Position");
+    //beamCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
+    GLES20.glEnableVertexAttribArray(beamPositionParam);
     checkGLError("Beam program params");
 
     // Object first appears directly in front of user.
@@ -424,6 +461,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         Log.i(TAG, "Object Missed. Score: " + score);
       }
     }
+
+    if (textimagelock.tryLock()) {
+      if (textRenderFinished) {
+        UpdateTextTexture();
+        textRenderFinished=false;
+      }
+      textimagelock.unlock();
+    }
     checkGLError("onReadyToDraw");
   }
 
@@ -456,21 +501,24 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.translateM(modelProjectile, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
     Matrix.multiplyMM(modelView, 0, view, 0, modelProjectile, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0);
+    drawProjectile();
 
-      drawProjectile();
-
-    // Set modelView for the floor, so we draw floor in the correct location
+//     Set modelView for the floor, so we draw floor in the correct location
     Matrix.multiplyMM(modelView, 0, view, 0, modelFloor, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelView, 0);
     drawFloor();
 
     Matrix.setIdentityM(modelBeam, 0);
-//    Matrix.translateM(modelBeam, 0, 0, .1f, 0);
+//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
+    float invHeadView[] = new float[16];
+    Matrix.invertM(invHeadView, 0, headView, 0);
+    Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
     Matrix.multiplyMM(modelView, 0, view, 0, modelBeam, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelView, 0);
     drawBeam();
+//    drawRect();
   }
 
   @Override
@@ -504,13 +552,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the normal positions of the cube, again for shading
     GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
     GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0, cubeColors);
-
+//
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
     checkGLError("Drawing cube");
   }
 
   public void drawProjectile() {
-
 
     GLES20.glUseProgram(cubeProgram);
 
@@ -538,7 +585,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   }
 
   public void drawBeam() {
-    GLES20.glUseProgram(beamProgram);
+    GLES20.glUseProgram(txProgram);
 
     // Set the position of the beam
     GLES20.glVertexAttribPointer(beamPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
@@ -550,6 +597,21 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glLineWidth(2);
     GLES20.glDrawArrays(GLES20.GL_LINES, 0, 2);
     checkGLError("Drawing Beam");
+  }
+
+  public void drawRect() {
+    GLES20.glUseProgram(beamProgram);
+
+    // Set the position of the beam
+    GLES20.glVertexAttribPointer(beamPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, 0, beamVertices);
+
+    // Set the ModelViewProjection matrix in the shader.
+    GLES20.glUniformMatrix4fv(beamModelViewProjectionParam, 1, false, modelViewProjection, 0);
+
+    GLES20.glLineWidth(2);
+    GLES20.glDrawArrays(GLES20.GL_LINES, 0, 2);
+    checkGLError("Drawing REct");
   }
 
   /**
@@ -573,7 +635,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         false, 0, floorVertices);
     GLES20.glVertexAttribPointer(floorCoordParam, 3, GLES20.GL_FLOAT, false, 0,
         floorNormals);
-    GLES20.glVertexAttribPointer(floorColorParam, 4, GLES20.GL_FLOAT, false, 0, floorColors);
+//    GLES20.glVertexAttribPointer(floorColorParam, 4, GLES20.GL_FLOAT, false, 0, floorColors);
 
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6 * 6);
 
@@ -672,15 +734,50 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     return Math.abs(pitch) < PITCH_LIMIT && Math.abs(yaw) < YAW_LIMIT;
   }
 
+  //Text Rendering:
   TextViewUpdater textViewUpdater = new TextViewUpdater();
-  Handler textViewUpdaterHandler = new Handler(Looper.getMainLooper());
+  Handler textUpdaterHandler = new Handler(Looper.getMainLooper());
+  private final ReentrantLock textimagelock = new ReentrantLock();
+
+  //Protected by textimagelock:
+  private Bitmap textBitmap;
+  private boolean textRenderFinished=false;
 
   private class TextViewUpdater implements Runnable{
     private String txt;
     private int time;
     @Override
     public void run() {
+      Log.i(TAG, "TextViewUpdater");
+      if (Looper.myLooper() == Looper.getMainLooper())
+        Log.i(TAG, "In UI thread");
+      else
+        Log.i(TAG, "Not in UI thread");
       overlayView.show3DToast(txt, time);
+
+      textimagelock.lock();
+      // Create an empty, mutable textBitmap
+      textBitmap = Bitmap.createBitmap(512, 256, Bitmap.Config.ARGB_4444);
+      textBitmap.eraseColor(Color.WHITE);
+      // get a canvas to paint over the textBitmap
+      Canvas canvas = new Canvas(textBitmap);
+      textBitmap.eraseColor(0);
+
+      // get a background image from resources
+// note the image format must match the textBitmap format
+//    Drawable background = overlayView.getResources().getDrawable(R.drawable.background);
+//    background.setBounds(0, 0, 256, 256);
+//    background.draw(canvas); // draw the background to our textBitmap
+      // Draw the text
+      Paint textPaint = new Paint();
+      textPaint.setTextSize(32);
+      textPaint.setAntiAlias(true);
+      textPaint.setARGB(0xff, 0x00, 0x00, 0x00);
+// draw the text centered
+      canvas.drawText("Hello World", 16, 112, textPaint);
+      textRenderFinished=true;
+      textimagelock.unlock();
+
     }
     public void setText(String txt){
       this.txt = txt;
@@ -690,6 +787,31 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     }
   }
 
+    public void UpdateTextTexture() {
+      Log.i(TAG, "TextViewUpdaterFinished");
+      if (Looper.myLooper() == Looper.getMainLooper())
+        Log.e(TAG, "In UI thread");
+
+      int[] textures = new int[1];
+//Generate one texture pointer...
+      GLES20.glGenTextures(1, textures, 0);
+//...and bind it to our array
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
+
+//Create Nearest Filtered Texture
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+
+//Different possible texture parameters, e.g. GL10.GL_CLAMP_TO_EDGE
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT);
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT);
+
+//Use the Android GLUtils to specify a two-dimensional texture image from our textBitmap
+      GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, textBitmap, 0);
+      checkGLError("UpdateTextTextureFinished");
+      Log.i(TAG, "Texture created " + textures[0]);
+    }
+
   private void show3DToast(String message) {
     show3DToast(message, 5000);
   }
@@ -697,7 +819,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private void show3DToast(String message, int time) {
     textViewUpdater.setText(message);
     textViewUpdater.setTime(time);
-    textViewUpdaterHandler.post(textViewUpdater);
+    textUpdaterHandler.post(textViewUpdater);
   }
 
 }

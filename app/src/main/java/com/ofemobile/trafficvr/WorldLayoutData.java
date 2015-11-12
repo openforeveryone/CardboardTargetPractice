@@ -375,8 +375,8 @@ public final class WorldLayoutData {
 //  };
 
     public static final float[] BEAM_VERTS = new float[]{
-            0f, -0.75f, 0f,
-            -10f, 0, 10f,
+            0.2f, -0.75f, 0f,
+            0, 0, -10f,
     };
 
 
@@ -384,4 +384,15 @@ public final class WorldLayoutData {
 //            0f, -0.75f, 0f,
 //            -10f, 0, 10f,
 //    };
+
+    public static final float[] RECT_COORDS = new float[]{
+            // Front face
+            -0.1f, 0.1f, 0.1f,
+            -0.1f, -0.1f, 0.1f,
+            0.1f, 0.1f, 0.1f,
+            -0.1f, -0.1f, 0.1f,
+            0.1f, -0.1f, 0.1f,
+            0.1f, 0.1f, 0.1f,
+    };
+
 }
