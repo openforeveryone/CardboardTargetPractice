@@ -121,6 +121,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int txModelViewProjectionParam;
   private int txPositionParam;
   private int txCoordParam;
+  private int txTransParam;
 
   private int plainModelViewProjectionParam;
   private int plainPositionParam;
@@ -155,6 +156,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   private Vibrator vibrator;
   private CardboardOverlayView overlayView;
+
+  private int frameNo = 0;
+  private int signFadeFrame = -200;
+
 
   /**
    * Converts a raw text file, saved as a resource, into an OpenGL ES shader.
@@ -412,6 +417,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Tx program");
 
     txModelViewProjectionParam = GLES20.glGetUniformLocation(txProgram, "u_MVP");
+    txTransParam = GLES20.glGetUniformLocation(txProgram, "u_Trans");
     txPositionParam = GLES20.glGetAttribLocation(txProgram, "a_Position");
     txCoordParam = GLES20.glGetAttribLocation(txProgram, "a_Coord");
     GLES20.glEnableVertexAttribArray(txPositionParam);
@@ -431,7 +437,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     plainColorParam = GLES20.glGetAttribLocation(plainProgram, "a_Color");
     GLES20.glEnableVertexAttribArray(plainPositionParam);
     GLES20.glEnableVertexAttribArray(plainColorParam);
-    checkGLError("Tx program params");
+    checkGLError("Plain program params");
 
     //Create the textures:
     int[] textures = new int[2];
@@ -498,6 +504,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
    */
   @Override
   public void onNewFrame(HeadTransform headTransform) {
+    frameNo++;
     // Build the Model part of the ModelView matrix.
     Matrix.rotateM(modelCube, 0, TIME_DELTA, 0.5f, 0.5f, 1.0f);
 
@@ -541,6 +548,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     if (textimagelock.tryLock()) {
       if (textRenderFinished) {
+        signTextureReady=true;
         UpdateTexture(signTexture, textBitmap);
         textRenderFinished=false;
       }
@@ -615,15 +623,24 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             modelViewMatrix, 0);
     drawAxis();
 
-    //Draw Sign:
-    Matrix.setIdentityM(modelMatrix, 0);
+    float trans = 1f;
+    if (frameNo>signFadeFrame)
+      trans = 1-(((float) frameNo-(float) signFadeFrame) / 100f);
+    if (signTextureReady && frameNo<(signFadeFrame+100)) {
+      for (int i =0; i<4; i++) {
+        //Draw Sign:
+        Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-    Matrix.translateM(modelMatrix, 0, 0, 0, -2);
-    Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
-    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
-    drawRect(signTexture);
+        Matrix.rotateM(modelMatrix, 0, 90*i, 0, 1, 0);
+        Matrix.translateM(modelMatrix, 0, 0.1f, -0.05f, -2);
+        Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
+        Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+        Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+                modelViewMatrix, 0);
+//      Log.v(TAG, "Trans" +trans + " frameNo " + frameNo + " signFadeFrame " + signFadeFrame);
+        drawRect(signTexture, trans);
+      }
+    }
 
     //Draw the Reticle (this must be done last due to transparency)
     Matrix.setIdentityM(modelMatrix, 0);
@@ -633,7 +650,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
-    drawRect(reticleTexture);
+    drawRect(reticleTexture, 1);
   }
 
   @Override
@@ -714,7 +731,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Drawing Beam");
   }
 
-  public void drawRect(int texture) {
+  public void drawRect(int texture, float trans) {
     GLES20.glUseProgram(txProgram);
 
     // Set the position of the beam
@@ -725,6 +742,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(txModelViewProjectionParam, 1, false, modelViewProjection, 0);
+    GLES20.glUniform1f(txTransParam, trans);
 
 
     GLES20.glEnable(GLES20.GL_BLEND);
@@ -880,6 +898,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   TextViewUpdater textViewUpdater = new TextViewUpdater();
   private final ReentrantLock textimagelock = new ReentrantLock();
   int signTexture = 0;
+  boolean signTextureReady = false;
 
   //Protected by textimagelock:
   private Bitmap textBitmap;
@@ -972,7 +991,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   private void show3DToast(String message, int time) {
     textViewUpdater.setText(message);
-    textViewUpdater.setTime(time);
+    signFadeFrame=frameNo+100;
+    signTextureReady=false;
     mainLoopHandler.post(textViewUpdater);
   }
 
