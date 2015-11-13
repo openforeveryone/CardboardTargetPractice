@@ -25,8 +25,6 @@ import com.google.vrtoolkit.cardboard.Viewport;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
@@ -34,6 +32,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Vibrator;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
 import android.util.Log;
 
 import java.io.BufferedReader;
@@ -491,7 +492,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       score+=2;
       Log.i(TAG, "Object Hit. Score: " + score);
       if (projectiles>0)
-        show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " left", 4000);
+        show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " shots left", 4000);
       else
         show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 6000);
       hideObject();
@@ -505,9 +506,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (out) {
         score--;
         if (projectiles>0)
-          show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " left", 4000);
+          show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " shots left", 4000);
         else
-          show3DToast("You missed it.\nScore = " + score + "\n Now fire streight at it.", 6000);
+          show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 6000);
         Log.i(TAG, "Object Missed. Score: " + score);
       }
     }
@@ -572,6 +573,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
     Matrix.translateM(modelMatrix, 0, 0, 0, -2);
+    Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
@@ -676,6 +678,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(txModelViewProjectionParam, 1, false, modelViewProjection, 0);
 
+
+    GLES20.glEnable(GLES20.GL_BLEND);
+    GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+
+    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+    checkGLError("Drawing Rect");
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
+    checkGLError("Drawing Rect");
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
     checkGLError("Drawing Rect");
   }
@@ -715,7 +725,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         modelViewProjection, 0);
     GLES20.glVertexAttribPointer(floorPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
         false, 0, floorVertices);
-    GLES20.glVertexAttribPointer(floorCoordParam, 3, GLES20.GL_FLOAT, false, 0,
+    GLES20.glVertexAttribPointer(floorCoordParam, 2, GLES20.GL_FLOAT, false, 0,
         floorNormals);
 //    GLES20.glVertexAttribPointer(floorColorParam, 4, GLES20.GL_FLOAT, false, 0, floorColors);
 
@@ -820,6 +830,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   TextViewUpdater textViewUpdater = new TextViewUpdater();
   Handler textUpdaterHandler = new Handler(Looper.getMainLooper());
   private final ReentrantLock textimagelock = new ReentrantLock();
+  int texture = 0;
 
   //Protected by textimagelock:
   private Bitmap textBitmap;
@@ -828,6 +839,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private class TextViewUpdater implements Runnable{
     private String txt;
     private int time;
+
     @Override
     public void run() {
       Log.i(TAG, "TextViewUpdater");
@@ -835,28 +847,45 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         Log.i(TAG, "In UI thread");
       else
         Log.i(TAG, "Not in UI thread");
-      overlayView.show3DToast(txt, time);
+//      overlayView.show3DToast(txt, time);
 
       textimagelock.lock();
       // Create an empty, mutable textBitmap
-      textBitmap = Bitmap.createBitmap(512, 256, Bitmap.Config.ARGB_4444);
-      textBitmap.eraseColor(Color.WHITE);
+      textBitmap = Bitmap.createBitmap(256, 128, Bitmap.Config.ARGB_4444);
+
+      textBitmap.eraseColor(0xFFFFFFFF); //White
+
       // get a canvas to paint over the textBitmap
       Canvas canvas = new Canvas(textBitmap);
-      textBitmap.eraseColor(0);
 
       // get a background image from resources
 // note the image format must match the textBitmap format
 //    Drawable background = overlayView.getResources().getDrawable(R.drawable.background);
-//    background.setBounds(0, 0, 256, 256);
+//    background.setBounds(0, 0, 256, 128);
 //    background.draw(canvas); // draw the background to our textBitmap
-      // Draw the text
-      Paint textPaint = new Paint();
-      textPaint.setTextSize(32);
-      textPaint.setAntiAlias(true);
-      textPaint.setARGB(0xff, 0x00, 0x00, 0x00);
-// draw the text centered
-      canvas.drawText("Hello World", 16, 112, textPaint);
+
+
+      TextPaint mTextPaint=new TextPaint();
+      mTextPaint.setTextSize(32);
+      mTextPaint.setAntiAlias(true);
+      mTextPaint.setARGB(0xff, 0x00, 0x00, 0x00);
+
+      StaticLayout mTextLayout;
+      mTextLayout = new StaticLayout(txt,
+              mTextPaint,
+              canvas.getWidth(),
+              Layout.Alignment.ALIGN_CENTER, 1.0f, 0.0f, false);
+
+      canvas.save();
+// calculate x and y position where your text will be placed
+
+      int textX = 0;
+      int textY = (canvas.getHeight()-mTextLayout.getHeight())/2;
+
+      canvas.translate(textX, textY);
+      mTextLayout.draw(canvas);
+      canvas.restore();
+
       textRenderFinished=true;
       textimagelock.unlock();
 
@@ -874,24 +903,29 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (Looper.myLooper() == Looper.getMainLooper())
         Log.e(TAG, "In UI thread");
 
-      int[] textures = new int[1];
+      if (texture==0) {
+        int[] textures = new int[1];
 //Generate one texture pointer...
-      GLES20.glGenTextures(1, textures, 0);
+        GLES20.glGenTextures(1, textures, 0);
 //...and bind it to our array
-      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
 
 //Create Nearest Filtered Texture
-      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
 
 //Different possible texture parameters, e.g. GL10.GL_CLAMP_TO_EDGE
-      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT);
-      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT);
+        Log.i(TAG, "Texture created " + textures[0]);
+        texture = textures[0];
+      }
 
 //Use the Android GLUtils to specify a two-dimensional texture image from our textBitmap
+
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
       GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, textBitmap, 0);
       checkGLError("UpdateTextTextureFinished");
-      Log.i(TAG, "Texture created " + textures[0]);
     }
 
   private void show3DToast(String message) {

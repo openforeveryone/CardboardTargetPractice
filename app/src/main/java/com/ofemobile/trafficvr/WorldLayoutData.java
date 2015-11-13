@@ -279,47 +279,47 @@ public final class WorldLayoutData {
 
     public static final float[] FLOOR_COORDSS = new float[] {
             //Floor
-            8.02f, 0, 0f,
-            0f, 0, 0f,
-            0f, 0, 8.02f,
-            8.02f, 0, 0f,
-            0f, 0, 8.02f,
-            8.02f, 0, 8.02f,
+            8.02f, 0f,
+            0f, 0f,
+            0f, 8.02f,
+            8.02f, 0f,
+            0f, 8.02f,
+            8.02f, 8.02f,
             //Ceil
-            8.02f, 0, 0f,
-            0f, 0, 0f,
-            0f, 0, 8.02f,
-            8.02f, 0, 0f,
-            0f, 0, 8.02f,
-            8.02f, 0, 8.02f,
+            8.02f, 0f,
+            0f, 0f,
+            0f, 8.02f,
+            8.02f, 0f,
+            0f, 8.02f,
+            8.02f, 8.02f,
             //Walls
-            8.02f, 0f, 0f,
-            8.02f, 0f, 4.02f,
-            0f, 0f, 4.02f,
-            8.02f, 0f, 0f,
-            0f, 0f, 0f,
-            0f, 0f, 4.02f,
+            8.02f, 0f,
+            8.02f, 4.02f,
+            0f, 4.02f,
+            8.02f, 0f,
+            0f, 0f,
+            0f, 4.02f,
 
-            8.02f, 0f, 0f,
-            8.02f, 0f, 4.02f,
-            0f, 0f, 4.02f,
-            8.02f, 0f, 0f,
-            0f, 0f, 0f,
-            0f, 0f, 4.02f,
+            8.02f, 0f,
+            8.02f, 4.02f,
+            0f, 4.02f,
+            8.02f, 0f,
+            0f, 0f,
+            0f, 4.02f,
 
-            8.02f, 0f, 0f,
-            8.02f, 0f, 4.02f,
-            0f, 0f, 4.02f,
-            8.02f, 0f, 0f,
-            0f, 0f, 0f,
-            0f, 0f, 4.02f,
+            8.02f, 0f,
+            8.02f, 4.02f,
+            0f, 4.02f,
+            8.02f, 0f,
+            0f, 0f,
+            0f, 4.02f,
 
-            8.02f, 0f, 0f,
-            8.02f, 0f, 4.02f,
-            0f, 0f, 4.02f,
-            8.02f, 0f, 0f,
-            0f, 0f, 0f,
-            0f, 0f, 4.02f,
+            8.02f, 0f,
+            8.02f, 4.02f,
+            0f, 4.02f,
+            8.02f, 0f,
+            0f, 0f,
+            0f, 4.02f,
     };
 
     public static final float[] FLOOR_COLORS = new float[] {
@@ -387,22 +387,22 @@ public final class WorldLayoutData {
 
     public static final float[] RECT_COORDS = new float[]{
             // Front face
-            -1f, 1f, 0,
-            -1f, -1f, 0,
-            1f, 1f, 0,
-            -1f, -1f, 0,
-            1f, -1f, 0,
-            1f, 1f, 0,
+            -1f, .5f, 0,
+            -1f, -.5f, 0,
+            1f, .5f, 0,
+            -1f, -.5f, 0,
+            1f, -.5f, 0,
+            1f, .5f, 0,
     };
 
     public static final float[] RECT_TXCOORDS = new float[]{
             // Front face
-            -1f, 1f,
-            -1f, -1f,
+            0f, 0f,
+            0f, 1f,
+            1f, 0f,
+            0f, 1f,
             1f, 1f,
-            -1f, -1f,
-            1f, -1f,
-            1f, 1f,
+            1f, 0f,
     };
 
     public static final float[] AXIS_VERTS = new float[] {
