@@ -233,7 +233,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
 
     overlayView = (CardboardOverlayView) findViewById(R.id.overlay);
-    overlayView.show3DToast("Pull the magnet when you find an object.", 5000);
+    show3DToast("Pull the magnet when you find a target.", 5000);
 
     Log.i(TAG, "onCreate");
     if (Looper.myLooper() == Looper.getMainLooper())
@@ -525,9 +525,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       score+=2;
       Log.i(TAG, "Object Hit. Score: " + score);
       if (projectiles>0)
-        show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " shots left", 4000);
+        show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
       else
-        show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 6000);
+        show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 4000);
       hideObject();
       //Setting out here prevents loosing point when this poj hits a wall.
       out=true;
@@ -539,9 +539,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (out) {
         score--;
         if (projectiles>0)
-          show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " shots left", 4000);
+          show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
         else
-          show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 6000);
+          show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 4000);
         Log.i(TAG, "Object Missed. Score: " + score);
       }
     }
@@ -612,7 +612,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
     drawBeam();
-
 
 
     Matrix.setIdentityM(modelMatrix, 0);
@@ -824,15 +823,15 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (isLookingAtObject()) {
         score+=2;
         if (rays>0)
-          show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 4000);
+          show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 1500);
         else
-          show3DToast("You hit it.\nScore = " + score, 6000);
+          show3DToast("You hit it.\nScore = " + score, 4000);
         hideObject();
       } else {
         if (rays>0)
-          show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 4000);
+          show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 1500);
         else
-          show3DToast("You missed it.\nScore = " + score, 6000);
+          show3DToast("You missed it.\nScore = " + score, 4000);
       }
     }
       // Always give user feedback.
@@ -991,7 +990,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   private void show3DToast(String message, int time) {
     textViewUpdater.setText(message);
-    signFadeFrame=frameNo+100;
+    signFadeFrame=frameNo+(time/16);
     signTextureReady=false;
     mainLoopHandler.post(textViewUpdater);
   }
