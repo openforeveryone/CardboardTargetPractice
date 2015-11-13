@@ -25,6 +25,9 @@ import com.google.vrtoolkit.cardboard.Viewport;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
@@ -430,6 +433,29 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glEnableVertexAttribArray(plainColorParam);
     checkGLError("Tx program params");
 
+    //Create the textures:
+    int[] textures = new int[2];
+//Generate one signTexture pointer...
+    GLES20.glGenTextures(2, textures, 0);
+
+    for (int i =0; i<2; i++) {
+//...and bind it to our array
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[i]);
+
+//Create Nearest Filtered Texture
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+
+//Different possible signTexture parameters, e.g. GL10.GL_CLAMP_TO_EDGE
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT);
+      GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT);
+      Log.i(TAG, "Texture created " + textures[i]);
+    }
+    signTexture = textures[0];
+    reticleTexture = textures[1];
+
+    updateReticle(1);
+
     // Object first appears directly in front of user.
     Matrix.setIdentityM(modelCube, 0);
     Matrix.translateM(modelCube, 0, 0, 0, -objectDistance);
@@ -515,11 +541,20 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     if (textimagelock.tryLock()) {
       if (textRenderFinished) {
-        UpdateTextTexture();
+        UpdateTexture(signTexture, textBitmap);
         textRenderFinished=false;
       }
       textimagelock.unlock();
     }
+
+    if (reticleBitmaplock.tryLock()) {
+      if (reticleRenderFinished) {
+        UpdateTexture(reticleTexture, reticleBitmap);
+        reticleRenderFinished=false;
+      }
+      reticleBitmaplock.unlock();
+    }
+
     checkGLError("onReadyToDraw");
   }
 
@@ -570,14 +605,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             modelViewMatrix, 0);
     drawBeam();
 
-    Matrix.setIdentityM(modelMatrix, 0);
-//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-    Matrix.translateM(modelMatrix, 0, 0, 0, -2);
-    Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
-    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
-    drawRect();
+
 
     Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
@@ -586,6 +614,26 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
     drawAxis();
+
+    //Draw Sign:
+    Matrix.setIdentityM(modelMatrix, 0);
+//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
+    Matrix.translateM(modelMatrix, 0, 0, 0, -2);
+    Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
+    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+            modelViewMatrix, 0);
+    drawRect(signTexture);
+
+    //Draw the Reticle (this must be done last due to transparency)
+    Matrix.setIdentityM(modelMatrix, 0);
+    Matrix.translateM(modelMatrix, 0, 0, 0, -1.5f);
+    Matrix.scaleM(modelMatrix, 0, .05f, .05f, .05f);
+    Matrix.multiplyMM(modelMatrix, 0, invHeadView, 0, modelMatrix, 0);
+    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+            modelViewMatrix, 0);
+    drawRect(reticleTexture);
   }
 
   @Override
@@ -666,7 +714,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Drawing Beam");
   }
 
-  public void drawRect() {
+  public void drawRect(int texture) {
     GLES20.glUseProgram(txProgram);
 
     // Set the position of the beam
@@ -826,11 +874,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     return Math.abs(pitch) < PITCH_LIMIT && Math.abs(yaw) < YAW_LIMIT;
   }
 
+  Handler mainLoopHandler = new Handler(Looper.getMainLooper());
+
   //Text Rendering:
   TextViewUpdater textViewUpdater = new TextViewUpdater();
-  Handler textUpdaterHandler = new Handler(Looper.getMainLooper());
   private final ReentrantLock textimagelock = new ReentrantLock();
-  int texture = 0;
+  int signTexture = 0;
 
   //Protected by textimagelock:
   private Bitmap textBitmap;
@@ -851,12 +900,19 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
       textimagelock.lock();
       // Create an empty, mutable textBitmap
-      textBitmap = Bitmap.createBitmap(256, 128, Bitmap.Config.ARGB_4444);
+      textBitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_4444);
 
-      textBitmap.eraseColor(0xFFFFFFFF); //White
+      textBitmap.eraseColor(Color.TRANSPARENT);
 
       // get a canvas to paint over the textBitmap
       Canvas canvas = new Canvas(textBitmap);
+
+      Paint paint=new Paint();
+      paint.setAntiAlias(true);
+      paint.setStrokeWidth(0);
+      paint.setColor(Color.WHITE);
+      RectF rectF = new RectF(0f,64f,256f,64f+128f);
+      canvas.drawRoundRect(rectF, 7, 7, paint);
 
       // get a background image from resources
 // note the image format must match the textBitmap format
@@ -880,7 +936,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 // calculate x and y position where your text will be placed
 
       int textX = 0;
-      int textY = (canvas.getHeight()-mTextLayout.getHeight())/2;
+      int textY = (128-mTextLayout.getHeight())/2 + 64;
 
       canvas.translate(textX, textY);
       mTextLayout.draw(canvas);
@@ -898,33 +954,15 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     }
   }
 
-    public void UpdateTextTexture() {
+    public void UpdateTexture(int texture, Bitmap bitmap) {
       Log.i(TAG, "TextViewUpdaterFinished");
       if (Looper.myLooper() == Looper.getMainLooper())
         Log.e(TAG, "In UI thread");
 
-      if (texture==0) {
-        int[] textures = new int[1];
-//Generate one texture pointer...
-        GLES20.glGenTextures(1, textures, 0);
-//...and bind it to our array
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
-
-//Create Nearest Filtered Texture
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-
-//Different possible texture parameters, e.g. GL10.GL_CLAMP_TO_EDGE
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT);
-        Log.i(TAG, "Texture created " + textures[0]);
-        texture = textures[0];
-      }
-
-//Use the Android GLUtils to specify a two-dimensional texture image from our textBitmap
+//Use the Android GLUtils to specify a two-dimensional signTexture image from our textBitmap
 
       GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
-      GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, textBitmap, 0);
+      GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0);
       checkGLError("UpdateTextTextureFinished");
     }
 
@@ -935,7 +973,63 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private void show3DToast(String message, int time) {
     textViewUpdater.setText(message);
     textViewUpdater.setTime(time);
-    textUpdaterHandler.post(textViewUpdater);
+    mainLoopHandler.post(textViewUpdater);
+  }
+
+  //Reticle Rendering:
+  ReticleUpdater reticleUpdater = new ReticleUpdater();
+  private final ReentrantLock reticleBitmaplock = new ReentrantLock();
+  int reticleTexture=0;
+
+  //Protected by reticleimagelock:
+  private Bitmap reticleBitmap;
+  private boolean reticleRenderFinished=false;
+
+  private class ReticleUpdater implements Runnable{
+    private int type;
+    private Color colour;
+
+    @Override
+    public void run() {
+      Log.i(TAG, "TextViewUpdater");
+      if (Looper.myLooper() == Looper.getMainLooper())
+        Log.i(TAG, "In UI thread");
+      else
+        Log.i(TAG, "Not in UI thread");
+//      overlayView.show3DToast(txt, time);
+
+      reticleBitmaplock.lock();
+      // Create an empty, mutable textBitmap
+      reticleBitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_4444);
+
+      reticleBitmap.eraseColor(Color.TRANSPARENT); //White
+
+      // get a canvas to paint over the textBitmap
+      Canvas canvas = new Canvas(reticleBitmap);
+      Paint paint=new Paint();
+      paint.setAntiAlias(true);
+      paint.setStrokeWidth(2);
+      paint.setColor(Color.DKGRAY);
+
+      canvas.translate(16, 16);
+      canvas.drawLine(-14, -14, 14, 14, paint);
+      canvas.drawLine(14, -14, -14, 14, paint);
+
+      reticleRenderFinished=true;
+      reticleBitmaplock.unlock();
+
+    }
+    public void setType(int type){
+      this.type = type;
+    }
+    public void setColour(Color colour){
+      this.colour = colour;
+    }
+  }
+
+  private void updateReticle(int type) {
+    reticleUpdater.setType(type);
+    mainLoopHandler.post(reticleUpdater);
   }
 
 }

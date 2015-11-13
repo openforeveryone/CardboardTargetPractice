@@ -387,12 +387,12 @@ public final class WorldLayoutData {
 
     public static final float[] RECT_COORDS = new float[]{
             // Front face
-            -1f, .5f, 0,
-            -1f, -.5f, 0,
-            1f, .5f, 0,
-            -1f, -.5f, 0,
-            1f, -.5f, 0,
-            1f, .5f, 0,
+            -1f, 1f, 0,
+            -1f, -1f, 0,
+            1f, 1f, 0,
+            -1f, -1f, 0,
+            1f, -1f, 0,
+            1f, 1f, 0,
     };
 
     public static final float[] RECT_TXCOORDS = new float[]{
