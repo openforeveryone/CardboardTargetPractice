@@ -387,12 +387,67 @@ public final class WorldLayoutData {
 
     public static final float[] RECT_COORDS = new float[]{
             // Front face
-            -0.1f, 0.1f, 0.1f,
-            -0.1f, -0.1f, 0.1f,
-            0.1f, 0.1f, 0.1f,
-            -0.1f, -0.1f, 0.1f,
-            0.1f, -0.1f, 0.1f,
-            0.1f, 0.1f, 0.1f,
+            -1f, 1f, 0,
+            -1f, -1f, 0,
+            1f, 1f, 0,
+            -1f, -1f, 0,
+            1f, -1f, 0,
+            1f, 1f, 0,
     };
+
+    public static final float[] RECT_TXCOORDS = new float[]{
+            // Front face
+            -1f, 1f,
+            -1f, -1f,
+            1f, 1f,
+            -1f, -1f,
+            1f, -1f,
+            1f, 1f,
+    };
+
+    public static final float[] AXIS_VERTS = new float[] {
+            0f, 0f, 0f,
+            1f, 0f, 0f,
+            1f, 0f, 0f,
+            .9f, 0f, -.1f,
+            1f, 0f, 0f,
+            .9f, 0f, .1f,
+            0f, 0f, 0f,
+            0f, 1f, 0f,
+            0f, 1f, 0f,
+            -.1f, .9f, 0f,
+            0f, 1f, 0f,
+            .1f, .9f, 0f,
+            0f, 0f, 0f,
+            0f, 0f, 1f,
+            0f, 0f, 1f,
+            -.1f, 0f, .9f,
+            0f, 0f, 1f,
+            .1f, 0f, .9f
+    };
+
+    public static final float[] AXIS_COLORS = new float[]
+            {
+                    1.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f,
+
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+                    0.0f, 1.0f, 0.0f,
+
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, 1.0f,
+                    0.0f, 0.0f, 1.0f
+            };
 
 }
