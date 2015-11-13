@@ -117,6 +117,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int beamModelViewProjectionParam;
   private int beamPositionParam;
   private int beamCoordParam;
+  private int beamMaxDepthParam;
 
   private int txModelViewProjectionParam;
   private int txPositionParam;
@@ -138,7 +139,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] modelBeam;
   private float[] modelMatrix;
 
-
   private float[] projectilePos = {1,0,0,1};
   private float[] projectileVelocity = {1,1,0,0};
   private float[] cubePos = {0,0,0,0};
@@ -159,6 +159,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   private int frameNo = 0;
   private int signFadeFrame = -200;
+
+  private boolean beamFiring = false;
+  private float beamDist = 0;
 
 
   /**
@@ -273,6 +276,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     beamVertices.put(WorldLayoutData.BEAM_VERTS);
     beamVertices.position(0);
 
+    ByteBuffer bbBeamTXCoords = ByteBuffer.allocateDirect(WorldLayoutData.BEAM_TCCOORDS.length * 4);
+    bbBeamTXCoords.order(ByteOrder.nativeOrder());
+    beamTXCoords = bbBeamTXCoords.asFloatBuffer();
+    beamTXCoords.put(WorldLayoutData.BEAM_TCCOORDS);
+    beamTXCoords.position(0);
+
     ByteBuffer bbrVertices = ByteBuffer.allocateDirect(WorldLayoutData.RECT_COORDS.length * 4);
     bbrVertices.order(ByteOrder.nativeOrder());
     rectVertices = bbrVertices.asFloatBuffer();
@@ -341,7 +350,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     axisColors.put(WorldLayoutData.AXIS_COLORS);
     axisColors.position(0);
 
-    int beamvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.beam_vertex);
+    int beamVertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.beam_vertex);
+    int beamFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.beam_fragment);
     int gridvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.grid_vertex);
     int vertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.light_vertex);
     int gridShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.grid_fragment);
@@ -397,16 +407,18 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Floor program params");
 
     beamProgram = GLES20.glCreateProgram();
-    GLES20.glAttachShader(beamProgram, beamvertexShader);
-    GLES20.glAttachShader(beamProgram, passthroughShader);
+    GLES20.glAttachShader(beamProgram, beamVertexShader);
+    GLES20.glAttachShader(beamProgram, beamFragShader);
     GLES20.glLinkProgram(beamProgram);
     GLES20.glUseProgram(beamProgram);
     checkGLError("Beam program");
 
     beamModelViewProjectionParam = GLES20.glGetUniformLocation(beamProgram, "u_MVP");
     beamPositionParam = GLES20.glGetAttribLocation(beamProgram, "a_Position");
-    //beamCoordParam = GLES20.glGetAttribLocation(floorProgram, "a_Coord");
+    beamCoordParam = GLES20.glGetAttribLocation(beamProgram, "a_TXCoord");
+    beamMaxDepthParam = GLES20.glGetUniformLocation(beamProgram, "u_maxDepth");
     GLES20.glEnableVertexAttribArray(beamPositionParam);
+    GLES20.glEnableVertexAttribArray(beamCoordParam);
     checkGLError("Beam program params");
 
     txProgram = GLES20.glCreateProgram();
@@ -505,6 +517,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   @Override
   public void onNewFrame(HeadTransform headTransform) {
     frameNo++;
+
+    if (beamFiring) {
+      beamDist += 0.4;
+      if (beamDist>15) {
+        beamFiring = false;
+        beamDist=0;
+      }
+    }
     // Build the Model part of the ModelView matrix.
     Matrix.rotateM(modelCube, 0, TIME_DELTA, 0.5f, 0.5f, 1.0f);
 
@@ -603,17 +623,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             modelViewMatrix, 0);
     drawFloor();
 
-    Matrix.setIdentityM(modelBeam, 0);
-//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-    float invHeadView[] = new float[16];
-    Matrix.invertM(invHeadView, 0, headView, 0);
-    Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
-    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
-    drawBeam();
-
-
     Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
     Matrix.translateM(modelMatrix, 0, 2, -1, -2);
@@ -621,6 +630,21 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
     drawAxis();
+
+    GLES20.glEnable(GLES20.GL_BLEND);
+    GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+
+    float invHeadView[] = new float[16];
+    Matrix.invertM(invHeadView, 0, headView, 0);
+    if (beamFiring) {
+//      Matrix.setIdentityM(modelBeam, 0);
+//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
+//      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
+      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+              modelViewMatrix, 0);
+      drawBeam();
+    }
 
     float trans = 1f;
     if (frameNo>signFadeFrame)
@@ -650,6 +674,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
     drawRect(reticleTexture, 1);
+
+    GLES20.glDisable(GLES20.GL_BLEND);
+
   }
 
   @Override
@@ -721,12 +748,15 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the position of the beam
     GLES20.glVertexAttribPointer(beamPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
             false, 0, beamVertices);
+    GLES20.glVertexAttribPointer(beamCoordParam, 1, GLES20.GL_FLOAT,
+            false, 0, beamTXCoords);
 
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(beamModelViewProjectionParam, 1, false, modelViewProjection, 0);
 
-    GLES20.glLineWidth(2);
-    GLES20.glDrawArrays(GLES20.GL_LINES, 0, 2);
+    GLES20.glUniform1f(beamMaxDepthParam, beamDist);
+
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
     checkGLError("Drawing Beam");
   }
 
@@ -742,10 +772,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(txModelViewProjectionParam, 1, false, modelViewProjection, 0);
     GLES20.glUniform1f(txTransParam, trans);
-
-
-    GLES20.glEnable(GLES20.GL_BLEND);
-    GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
 
     GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
     checkGLError("Drawing Rect");
@@ -767,7 +793,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(plainModelViewProjectionParam, 1, false, modelViewProjection, 0);
 
-    GLES20.glDrawArrays(GLES20.GL_LINES, 0, 15);
+    GLES20.glLineWidth(2);
+    GLES20.glDrawArrays(GLES20.GL_LINES, 0, 18);
     checkGLError("Drawing Axis");
   }
 
@@ -787,7 +814,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glUniformMatrix4fv(floorModelParam, 1, false, modelFloor, 0);
     GLES20.glUniformMatrix4fv(floorModelViewParam, 1, false, modelViewMatrix, 0);
     GLES20.glUniformMatrix4fv(floorModelViewProjectionParam, 1, false,
-        modelViewProjection, 0);
+            modelViewProjection, 0);
     GLES20.glVertexAttribPointer(floorPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
         false, 0, floorVertices);
     GLES20.glVertexAttribPointer(floorCoordParam, 2, GLES20.GL_FLOAT, false, 0,
@@ -806,6 +833,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   public void onCardboardTrigger() {
     Log.i(TAG, "onCardboardTrigger");
 
+    if (!beamFiring) {
+      beamFiring = true;
+      float invHeadView[] = new float[16];
+      Matrix.invertM(invHeadView, 0, headView, 0);
+      Matrix.setIdentityM(modelBeam, 0);
+      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
+    }
 
 //    vibrator.vibrate(50);
     if (out && projectiles > 0) {
