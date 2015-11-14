@@ -143,6 +143,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] projectileVelocity = {1,1,0,0};
   private float[] cubePos = {0,0,0,0};
   private float[] cubeVel = {0,0,0,0};
+  private float[] cubeAccel = {0,0,0,0};
 
 
 
@@ -542,6 +543,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     for (int i=0; i<3; i++)
       cubePos[i]=cubePos[i]+cubeVel[i]/60f;
+    for (int i=0; i<3; i++)
+      cubeVel[i]=cubeVel[i]+cubeAccel[i]/60f;
     boolean cubeOut = false;
     if (Math.abs(cubePos[0]) > 4.0f) cubeOut = true;
     if (cubePos[1] < -1.5f) cubeOut = true;
@@ -679,7 +682,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       else {
         mode++;
         shots=10;
-        if (mode == 4) {
+        if (mode == 5) {
           message=message+"Game Over\nScore: " + score;
           messagetime=10000;
           mode=0;
@@ -1003,10 +1006,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     cubePos = new float[] {posVec[0], newY, posVec[2]};
 
     for (int i=0; i<3; i++) {
-      if (mode == 3)
-        cubeVel[i] = (float) Math.random() * 0.5f + 0.5f;
+      if (mode > 2)
+        cubeVel[i] = (float) Math.random() * 2.0f - 1.0f;
       else
         cubeVel[i] = 0;
+      if (mode == 4)
+        cubeAccel[i] = (float) Math.random() * 0.4f - 0.8f;
+      else
+        cubeAccel[i] = 0;
     }
     Log.i(TAG, "cubeVel:  X: " + cubeVel[0] + "  Y: " + cubeVel[1] + "  Z: " + cubeVel[2]);
 
