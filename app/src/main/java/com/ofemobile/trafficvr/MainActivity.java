@@ -514,6 +514,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   public void reset() {
     shots=10;
     mode=1;
+    score=0;
   }
 
   /**
@@ -720,17 +721,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glEnable(GLES20.GL_BLEND);
     GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
 
-    float invHeadView[] = new float[16];
-    Matrix.invertM(invHeadView, 0, headView, 0);
-    if (beamFiring) {
-//      Matrix.setIdentityM(modelBeam, 0);
-//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-//      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
-      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
-      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-              modelViewMatrix, 0);
-      drawBeam();
-    }
 
     float trans = 1f;
     if (frameNo>signFadeFrame)
@@ -749,6 +739,18 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 //      Log.v(TAG, "Trans" +trans + " frameNo " + frameNo + " signFadeFrame " + signFadeFrame);
         drawRect(signTexture, trans);
       }
+    }
+
+    float invHeadView[] = new float[16];
+    Matrix.invertM(invHeadView, 0, headView, 0);
+    if (beamFiring) {
+//      Matrix.setIdentityM(modelBeam, 0);
+//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
+//      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
+      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+              modelViewMatrix, 0);
+      drawBeam();
     }
 
     //Draw the Reticle (this must be done last due to transparency)
