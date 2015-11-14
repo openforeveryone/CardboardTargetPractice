@@ -577,48 +577,53 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       //            0.2f, -0.75f, 0f,
       //            0, 0, -10f,
 
-
-      Log.i(TAG, "Beam Fire test");
       float[] startVec1 = {0.2f, -0.75f, 0f, 1.0f};
       float[] startVec2 = {0, 0, -10f, 1.0f};
       float[] positionVec1 = new float[4];
       float[] positionVec2 = new float[4];
       float[] intPositionVec = new float[4];
 
-//    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
       Matrix.multiplyMV(positionVec1, 0, modelBeam, 0, startVec1, 0);
       Matrix.multiplyMV(positionVec2, 0, modelBeam, 0, startVec2, 0);
       for (int i=0; i<3; i++)
         positionVec1[i]=positionVec1[i]/positionVec1[3];
       for (int i=0; i<3; i++)
         positionVec2[i]=positionVec2[i]/positionVec2[3];
-      if(beamDist<0.5) {
-        Log.i(TAG, "positionVec1 " + positionVec1[0] + "  " + positionVec1[1] + "  " + positionVec1[2]);
-        Log.i(TAG, "positionVec2 " + positionVec2[0] + "  " + positionVec2[1] + "  " + positionVec2[2]);
-      }
+//      if(beamDist<0.5) {
+//        Log.i(TAG, "positionVec1 " + positionVec1[0] + "  " + positionVec1[1] + "  " + positionVec1[2]);
+//        Log.i(TAG, "positionVec2 " + positionVec2[0] + "  " + positionVec2[1] + "  " + positionVec2[2]);
+//      }
       for (float interoplateFactor = 0; interoplateFactor < 1; interoplateFactor += 0.01) {
-        boolean hit = true;
-        for (int i=0; i<3; i++) {
-          intPositionVec[i] = interoplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
-          if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.2f)
-            hit = false;
-        }
-        if(beamDist<0.5)
-        Log.i(TAG, "Int: " + interoplateFactor + " test point:"
-                + intPositionVec[0] + "  " + intPositionVec[1] + "  "+ intPositionVec[2] + " Diff: "
-                        + Math.abs(intPositionVec[0] - cubePos[0]) + "  "
-                        + Math.abs(intPositionVec[1] - cubePos[1]) + "  "
-                        + Math.abs(intPositionVec[2] - cubePos[2]));
-        if (hit) {
-          Log.i(TAG, "Object hit by beam");
-          beamHit=true;
-          //Should not create flare effect
-          hideObject();
+        //Don't test points the beam has not reached
+        if (interoplateFactor*10.0 > beamDist) {
+//          Log.i(TAG, "interoplateFactor " + interoplateFactor + " beamDist " + beamDist);
           break;
         }
+        //Don't test points the end of the beam has gone past
+        if (interoplateFactor*10.0 > (beamDist-10)) {
+          boolean hit = true;
+          for (int i = 0; i < 3; i++) {
+            intPositionVec[i] = interoplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
+            if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.2f)
+              hit = false;
+          }
+//          if (beamDist < 0.5)
+//            Log.i(TAG, "Int: " + interoplateFactor + " test point:"
+//                    + intPositionVec[0] + "  " + intPositionVec[1] + "  " + intPositionVec[2] + " Diff: "
+//                    + Math.abs(intPositionVec[0] - cubePos[0]) + "  "
+//                    + Math.abs(intPositionVec[1] - cubePos[1]) + "  "
+//                    + Math.abs(intPositionVec[2] - cubePos[2]));
+          if (hit) {
+            Log.i(TAG, "Object hit by beam");
+            beamHit = true;
+            //Should not create flare effect
+            hideObject();
+            break;
+          }
+        }
       }
-      if(beamDist<0.5)
-        Log.v(TAG, "Cube pos: " + cubePos[0] + "  " + cubePos[1] + "  "+ cubePos[2] + "  ");
+//      if(beamDist<0.5)
+//        Log.v(TAG, "Cube pos: " + cubePos[0] + "  " + cubePos[1] + "  "+ cubePos[2] + "  ");
     }
 
     if (textimagelock.tryLock()) {
