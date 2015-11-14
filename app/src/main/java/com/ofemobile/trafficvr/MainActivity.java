@@ -142,6 +142,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] projectilePos = {1,0,0,1};
   private float[] projectileVelocity = {1,1,0,0};
   private float[] cubePos = {0,0,0,0};
+  private float[] cubeVel = {0,0,0,0};
+
 
 
   private float[] forwardVector = {0,0,0};
@@ -246,6 +248,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     else
       Log.i(TAG, "Not in UI thread");
 
+    reset();
   }
 
   @Override
@@ -512,7 +515,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   }
 
   public void reset() {
-    shots=10;
+    shots=2;
     mode=1;
     score=0;
   }
@@ -532,15 +535,21 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         beamFiring = false;
         beamDist=0;
         if (!beamHit) {
-          if (shots>0)
-            show3DToast("You missed it.\nScore = " + score + "\n" + shots + " left", 1500);
-          else {
-            mode=0;
-            show3DToast("You missed it.\nGame Over\nScore = " + score, 4000);
-          }
+          shotFinished(-2);
         }
       }
     }
+
+    for (int i=0; i<3; i++)
+      cubePos[i]=cubePos[i]+cubeVel[i]/60f;
+    boolean cubeOut = false;
+    if (Math.abs(cubePos[0]) > 4.0f) cubeOut = true;
+    if (cubePos[1] < -1.5f) cubeOut = true;
+    if (cubePos[1] > 4f-1.5f) cubeOut = true;
+    if (Math.abs(cubePos[2]) > 4.0f) cubeOut = true;
+    if (cubeOut)
+      hideObject();
+
     // Build the Model part of the ModelView matrix.
     Matrix.rotateM(modelCube, 0, TIME_DELTA, 0.5f, 0.5f, 1.0f);
 
@@ -560,15 +569,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       for (int i = 0; i < 3; i++)
         if (Math.abs(projectilePos[i] - cubePos[i]) > 0.2f) hit = false;
       if (hit) {
-        score += 2;
+        shotFinished(2);
         Log.i(TAG, "Object Hit. Score: " + score);
-        if (shots > 0)
-          show3DToast("You hit it.\nScore = " + score + "\n" + shots + " shots left", 1500);
-        else {
-          show3DToast("You hit it.\nScore = " + score + "\n Now fire at it.", 4000);
-          shots=10;
-          mode=2;
-        }
         hideObject();
         //Setting out here prevents loosing point when this poj hits a wall.
         out = true;
@@ -578,14 +580,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         if (projectilePos[1] < -1.5f) out = true;
         if (Math.abs(projectilePos[2]) > 4.0f) out = true;
         if (out) {
+          shotFinished(-1);
           score--;
-          if (shots > 0)
-            show3DToast("You missed it.\nScore = " + score + "\n" + shots + " shots left", 1500);
-          else {
-            show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 4000);
-            shots=10;
-            mode=2;
-          }
+
           Log.i(TAG, "Object Missed. Score: " + score);
         }
       }
@@ -636,13 +633,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
           if (hit) {
             Log.i(TAG, "Object hit by beam");
             beamHit = true;
-            score+=2;
-            if (shots>0)
-              show3DToast("You hit it.\nScore = " + score + "\n" + shots + " left", 1500);
-            else {
-              show3DToast("You hit it.\nGame Over\nScore = " + score, 4000);
-              reset();
-            }
+            shotFinished(2);
             //Should now create flare effect
             hideObject();
             break;
@@ -673,6 +664,30 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("onReadyToDraw");
   }
 
+
+  public void shotFinished(int scoreDelta) {
+    score+=scoreDelta;
+    String message;
+    int messagetime = 1500;
+
+    if (scoreDelta>0)
+      message="You hit it.\n";
+    else
+      message="You missed it.\n";
+      if (shots > 0)
+        message=message+"Score: " + score + "\n" + shots + " left";
+      else {
+        mode++;
+        shots=10;
+        if (mode == 4) {
+          message=message+"Game Over\nScore: " + score;
+          reset();
+        } else
+          message=message+"Level " + mode + "\nScore: " + score;
+      }
+    show3DToast(message, messagetime);
+  }
+
   /**
    * Draws a frame for an eye.
    *
@@ -694,6 +709,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Build the ModelView and ModelViewProjection matrices
     // for calculating cube position and light.
     float[] perspective = eye.getPerspective(Z_NEAR, Z_FAR);
+
+    Matrix.setIdentityM(modelCube, 0);
+    Matrix.translateM(modelCube, 0, cubePos[0], cubePos[1], cubePos[2]);
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelCube, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
     drawCube();
@@ -978,9 +996,16 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     float newY = (float) Math.random() * (floorDepth -0.04f) * 2 - (floorDepth -0.04f);
     Log.i(TAG, "hideObject() Radi: XZ: " + angleXZ + "  R: " + objectDistance);
     Log.i(TAG, "hideObject() Cart:  X: " + posVec[0] + "  Y(Height): " + newY + "  Z: " + posVec[2]);
-    Matrix.setIdentityM(modelCube, 0);
-    Matrix.translateM(modelCube, 0, posVec[0], newY, posVec[2]);
     cubePos = new float[] {posVec[0], newY, posVec[2]};
+
+    for (int i=0; i<3; i++) {
+      if (mode == 3)
+        cubeVel[i] = (float) Math.random() * 0.5f + 0.5f;
+      else
+        cubeVel[i] = 0;
+      }
+    Log.i(TAG, "cubeVel:  X: " + cubeVel[0] + "  Y: " + cubeVel[1] + "  Z: " + cubeVel[2]);
+
   }
 
   /**
