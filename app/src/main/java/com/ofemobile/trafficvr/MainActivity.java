@@ -147,8 +147,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] forwardVector = {0,0,0};
   
   private int score = 0;
-  private int projectiles = 2;
-  private int rays = 10;
+  private int shots = 10;
+  private int mode = 1;
   private float objectDistance = 3.5f;
   private float floorDepth = 1.5f;
 
@@ -511,6 +511,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     return null;
   }
 
+  public void reset() {
+    shots=10;
+    mode=1;
+  }
+
   /**
    * Prepares OpenGL ES before we draw a frame.
    *
@@ -526,10 +531,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         beamFiring = false;
         beamDist=0;
         if (!beamHit) {
-          if (rays>0)
-            show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 1500);
-          else
-            show3DToast("You missed it.\nScore = " + score, 4000);
+          if (shots>0)
+            show3DToast("You missed it.\nScore = " + score + "\n" + shots + " left", 1500);
+          else {
+            mode=0;
+            show3DToast("You missed it.\nGame Over\nScore = " + score, 4000);
+          }
         }
       }
     }
@@ -546,7 +553,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       projectilePos[i]+=projectileVelocity[i]/60.0f;
     projectileVelocity[1]-=9.81/60.0f;
 
-    //Chech to see if a projectile has hit a cube:
+    //Check to see if a projectile has hit a cube:
     {
       boolean hit = true;
       for (int i = 0; i < 3; i++)
@@ -554,10 +561,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (hit) {
         score += 2;
         Log.i(TAG, "Object Hit. Score: " + score);
-        if (projectiles > 0)
-          show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
-        else
-          show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 4000);
+        if (shots > 0)
+          show3DToast("You hit it.\nScore = " + score + "\n" + shots + " shots left", 1500);
+        else {
+          show3DToast("You hit it.\nScore = " + score + "\n Now fire at it.", 4000);
+          shots=10;
+          mode=2;
+        }
         hideObject();
         //Setting out here prevents loosing point when this poj hits a wall.
         out = true;
@@ -568,10 +578,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         if (Math.abs(projectilePos[2]) > 4.0f) out = true;
         if (out) {
           score--;
-          if (projectiles > 0)
-            show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
-          else
+          if (shots > 0)
+            show3DToast("You missed it.\nScore = " + score + "\n" + shots + " shots left", 1500);
+          else {
             show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 4000);
+            shots=10;
+            mode=2;
+          }
           Log.i(TAG, "Object Missed. Score: " + score);
         }
       }
@@ -623,10 +636,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             Log.i(TAG, "Object hit by beam");
             beamHit = true;
             score+=2;
-            if (rays>0)
-              show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 1500);
-            else
-              show3DToast("You hit it.\nScore = " + score, 4000);
+            if (shots>0)
+              show3DToast("You hit it.\nScore = " + score + "\n" + shots + " left", 1500);
+            else {
+              show3DToast("You hit it.\nGame Over\nScore = " + score, 4000);
+              reset();
+            }
             //Should now create flare effect
             hideObject();
             break;
@@ -905,18 +920,18 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Log.i(TAG, "onCardboardTrigger");
 
 //    vibrator.vibrate(50);
-    if (out && projectiles > 0) {
+    if (mode == 1 && out && shots > 0) {
       Log.i(TAG, "Throwing");
       projectilePos = new float[]{0, -.75f, 0, 1};
       projectileVelocity = new float[]{-forwardVector[0] * 5, (1 - forwardVector[1]) * 5, forwardVector[2] * 5, 0};
       Log.i(TAG, "Forward Vect: " + forwardVector[0] + " " + forwardVector[1] + " " + forwardVector[2]);
       out = false;
-      projectiles--;
+      shots--;
     }
-    if (out && projectiles == 0 && rays > 0)
+    if (mode > 1 && out && shots > 0)
     {
       Log.i(TAG, "Firing");
-      rays--;
+      shots--;
       if (!beamFiring) {
         beamFiring = true;
         beamHit = false;
@@ -926,6 +941,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
       }
     }
+    if (mode == 0)
+      reset();
       // Always give user feedback.
       vibrator.vibrate(20);
   }
