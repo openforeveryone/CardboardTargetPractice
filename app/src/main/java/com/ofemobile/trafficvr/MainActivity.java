@@ -675,13 +675,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     else
       message="You missed it.\n";
       if (shots > 0)
-        message=message+"Score: " + score + "\n" + shots + " left";
+        message=message+"Score: " + score + "\n" + shots + " Shots left";
       else {
         mode++;
         shots=10;
         if (mode == 4) {
           message=message+"Game Over\nScore: " + score;
-          reset();
+          messagetime=10000;
+          mode=0;
         } else
           message=message+"Level " + mode + "\nScore: " + score;
       }
@@ -710,11 +711,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // for calculating cube position and light.
     float[] perspective = eye.getPerspective(Z_NEAR, Z_FAR);
 
-    Matrix.setIdentityM(modelCube, 0);
-    Matrix.translateM(modelCube, 0, cubePos[0], cubePos[1], cubePos[2]);
-    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelCube, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
-    drawCube();
+    if (mode>0) {
+      Matrix.setIdentityM(modelCube, 0);
+      Matrix.translateM(modelCube, 0, cubePos[0], cubePos[1], cubePos[2]);
+      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelCube, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
+      drawCube();
+    }
 
     Matrix.setIdentityM(modelProjectile, 0);
     Matrix.translateM(modelProjectile, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
@@ -787,6 +790,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   @Override
   public void onFinishFrame(Viewport viewport) {
+
   }
 
 
@@ -1003,7 +1007,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         cubeVel[i] = (float) Math.random() * 0.5f + 0.5f;
       else
         cubeVel[i] = 0;
-      }
+    }
     Log.i(TAG, "cubeVel:  X: " + cubeVel[0] + "  Y: " + cubeVel[1] + "  Z: " + cubeVel[2]);
 
   }
