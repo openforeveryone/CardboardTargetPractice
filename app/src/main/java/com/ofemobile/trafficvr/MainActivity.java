@@ -147,7 +147,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] forwardVector = {0,0,0};
   
   private int score = 0;
-  private int projectiles = 10;
+  private int projectiles = 2;
   private int rays = 10;
   private float objectDistance = 3.5f;
   private float floorDepth = 1.5f;
@@ -162,6 +162,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
   private boolean beamFiring = false;
   private float beamDist = 0;
+  boolean beamHit = false;
+
 
 
   /**
@@ -538,32 +540,85 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       projectilePos[i]+=projectileVelocity[i]/60.0f;
     projectileVelocity[1]-=9.81/60.0f;
 
-    boolean hit = true;
-    for(int i=0; i<3; i++)
-      if (Math.abs(projectilePos[i]-cubePos[i])>0.2f) hit = false;
-    if (hit) {
-      score+=2;
-      Log.i(TAG, "Object Hit. Score: " + score);
-      if (projectiles>0)
-        show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
-      else
-        show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 4000);
-      hideObject();
-      //Setting out here prevents loosing point when this poj hits a wall.
-      out=true;
-    }
-    if (!out) {
-      if (Math.abs(projectilePos[0]) > 4.0f) out = true;
-      if (projectilePos[1] < -1.5f) out = true;
-      if (Math.abs(projectilePos[2]) > 4.0f) out = true;
-      if (out) {
-        score--;
-        if (projectiles>0)
-          show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
+    //Chech to see if a projectile has hit a cube:
+    {
+      boolean hit = true;
+      for (int i = 0; i < 3; i++)
+        if (Math.abs(projectilePos[i] - cubePos[i]) > 0.2f) hit = false;
+      if (hit) {
+        score += 2;
+        Log.i(TAG, "Object Hit. Score: " + score);
+        if (projectiles > 0)
+          show3DToast("You hit it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
         else
-          show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 4000);
-        Log.i(TAG, "Object Missed. Score: " + score);
+          show3DToast("You hit it.\nScore = " + score + "\n Now fire streight at it.", 4000);
+        hideObject();
+        //Setting out here prevents loosing point when this poj hits a wall.
+        out = true;
       }
+      if (!out) {
+        if (Math.abs(projectilePos[0]) > 4.0f) out = true;
+        if (projectilePos[1] < -1.5f) out = true;
+        if (Math.abs(projectilePos[2]) > 4.0f) out = true;
+        if (out) {
+          score--;
+          if (projectiles > 0)
+            show3DToast("You missed it.\nScore = " + score + "\n" + projectiles + " shots left", 1500);
+          else
+            show3DToast("You missed it.\nScore = " + score + "\n Now fire at it.", 4000);
+          Log.i(TAG, "Object Missed. Score: " + score);
+        }
+      }
+    }
+
+    if (beamFiring) {
+      //Check to see if the ray has hit a target
+      //We what to interpollate between these:
+      //            0.2f, -0.75f, 0f,
+      //            0, 0, -10f,
+
+
+      Log.i(TAG, "Beam Fire test");
+      float[] startVec1 = {0.2f, -0.75f, 0f, 1.0f};
+      float[] startVec2 = {0, 0, -10f, 1.0f};
+      float[] positionVec1 = new float[4];
+      float[] positionVec2 = new float[4];
+      float[] intPositionVec = new float[4];
+
+//    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
+      Matrix.multiplyMV(positionVec1, 0, modelBeam, 0, startVec1, 0);
+      Matrix.multiplyMV(positionVec2, 0, modelBeam, 0, startVec2, 0);
+      for (int i=0; i<3; i++)
+        positionVec1[i]=positionVec1[i]/positionVec1[3];
+      for (int i=0; i<3; i++)
+        positionVec2[i]=positionVec2[i]/positionVec2[3];
+      if(beamDist<0.5) {
+        Log.i(TAG, "positionVec1 " + positionVec1[0] + "  " + positionVec1[1] + "  " + positionVec1[2]);
+        Log.i(TAG, "positionVec2 " + positionVec2[0] + "  " + positionVec2[1] + "  " + positionVec2[2]);
+      }
+      for (float interoplateFactor = 0; interoplateFactor < 1; interoplateFactor += 0.01) {
+        boolean hit = true;
+        for (int i=0; i<3; i++) {
+          intPositionVec[i] = interoplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
+          if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.2f)
+            hit = false;
+        }
+        if(beamDist<0.5)
+        Log.i(TAG, "Int: " + interoplateFactor + " test point:"
+                + intPositionVec[0] + "  " + intPositionVec[1] + "  "+ intPositionVec[2] + " Diff: "
+                        + Math.abs(intPositionVec[0] - cubePos[0]) + "  "
+                        + Math.abs(intPositionVec[1] - cubePos[1]) + "  "
+                        + Math.abs(intPositionVec[2] - cubePos[2]));
+        if (hit) {
+          Log.i(TAG, "Object hit by beam");
+          beamHit=true;
+          //Should not create flare effect
+          hideObject();
+          break;
+        }
+      }
+      if(beamDist<0.5)
+        Log.v(TAG, "Cube pos: " + cubePos[0] + "  " + cubePos[1] + "  "+ cubePos[2] + "  ");
     }
 
     if (textimagelock.tryLock()) {
@@ -833,14 +888,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   public void onCardboardTrigger() {
     Log.i(TAG, "onCardboardTrigger");
 
-    if (!beamFiring) {
-      beamFiring = true;
-      float invHeadView[] = new float[16];
-      Matrix.invertM(invHeadView, 0, headView, 0);
-      Matrix.setIdentityM(modelBeam, 0);
-      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
-    }
-
 //    vibrator.vibrate(50);
     if (out && projectiles > 0) {
       Log.i(TAG, "Throwing");
@@ -854,19 +901,26 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     {
       Log.i(TAG, "Firing");
       rays--;
-      if (isLookingAtObject()) {
-        score+=2;
-        if (rays>0)
-          show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 1500);
-        else
-          show3DToast("You hit it.\nScore = " + score, 4000);
-        hideObject();
-      } else {
-        if (rays>0)
-          show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 1500);
-        else
-          show3DToast("You missed it.\nScore = " + score, 4000);
+      if (!beamFiring) {
+        beamFiring = true;
+        float invHeadView[] = new float[16];
+        Matrix.invertM(invHeadView, 0, headView, 0);
+        Matrix.setIdentityM(modelBeam, 0);
+        Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
       }
+//      if (isLookingAtObject()) {
+//        score+=2;
+//        if (rays>0)
+//          show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 1500);
+//        else
+//          show3DToast("You hit it.\nScore = " + score, 4000);
+//        hideObject();
+//      } else {
+//        if (rays>0)
+//          show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 1500);
+//        else
+//          show3DToast("You missed it.\nScore = " + score, 4000);
+//      }
     }
       // Always give user feedback.
       vibrator.vibrate(20);
