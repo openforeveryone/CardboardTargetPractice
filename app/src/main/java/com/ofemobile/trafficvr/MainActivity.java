@@ -525,6 +525,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (beamDist>15) {
         beamFiring = false;
         beamDist=0;
+        if (!beamHit) {
+          if (rays>0)
+            show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 1500);
+          else
+            show3DToast("You missed it.\nScore = " + score, 4000);
+        }
       }
     }
     // Build the Model part of the ModelView matrix.
@@ -616,7 +622,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
           if (hit) {
             Log.i(TAG, "Object hit by beam");
             beamHit = true;
-            //Should not create flare effect
+            score+=2;
+            if (rays>0)
+              show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 1500);
+            else
+              show3DToast("You hit it.\nScore = " + score, 4000);
+            //Should now create flare effect
             hideObject();
             break;
           }
@@ -908,24 +919,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       rays--;
       if (!beamFiring) {
         beamFiring = true;
+        beamHit = false;
         float invHeadView[] = new float[16];
         Matrix.invertM(invHeadView, 0, headView, 0);
         Matrix.setIdentityM(modelBeam, 0);
         Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
       }
-//      if (isLookingAtObject()) {
-//        score+=2;
-//        if (rays>0)
-//          show3DToast("You hit it.\nScore = " + score + "\n" + rays + " left", 1500);
-//        else
-//          show3DToast("You hit it.\nScore = " + score, 4000);
-//        hideObject();
-//      } else {
-//        if (rays>0)
-//          show3DToast("You missed it.\nScore = " + score + "\n" + rays + " left", 1500);
-//        else
-//          show3DToast("You missed it.\nScore = " + score, 4000);
-//      }
     }
       // Always give user feedback.
       vibrator.vibrate(20);
