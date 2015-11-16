@@ -793,13 +793,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
         Matrix.rotateM(modelMatrix, 0, 90*i, 0, 1, 0);
-        Matrix.translateM(modelMatrix, 0, 0.1f, -0.05f, -2);
+        Matrix.translateM(modelMatrix, 0, 0.1f, -0.05f, -3.5f);
         Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
         Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
         Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
                 modelViewMatrix, 0);
 //      Log.v(TAG, "Trans" +trans + " frameNo " + frameNo + " signFadeFrame " + signFadeFrame);
         drawRect(signTexture, trans);
+        drawAxis();
       }
     }
 
