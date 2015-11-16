@@ -1,4 +1,4 @@
-package com.ofemobile.trafficvr;
+package com.ofemobile.targetvr;
 
 import org.junit.Test;
 
