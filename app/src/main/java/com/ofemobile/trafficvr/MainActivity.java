@@ -648,7 +648,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
           boolean hit = true;
           for (int i = 0; i < 3; i++) {
             intPositionVec[i] = interoplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
-            if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.2f)
+            if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.12f)
               hit = false;
           }
 //          if (beamDist < 0.5)
@@ -674,7 +674,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             Matrix.translateM(billboardt, 0, intPositionVec[0], intPositionVec[1], intPositionVec[2]);
             Matrix.multiplyMM(modelFlare, 0, billboardt, 0, billboardir, 0);
 //            Matrix.multiplyMM(modelFlare, 0, billboardt, 0, invHeadView, 0);
-//            Matrix.scaleM(modelFlare, 0, .5f, .5f, .5f);
+            Matrix.scaleM(modelFlare, 0, .5f, .5f, .5f);
             flareStartFrame=frameNo;
             hideObject();
             break;
@@ -794,7 +794,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
         Matrix.rotateM(modelMatrix, 0, 90 * i, 0, 1, 0);
         Matrix.translateM(modelMatrix, 0, 0.1f, -0.05f, -3.5f);
-        Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
+        Matrix.scaleM(modelMatrix, 0, .75f, .75f, .75f);
         Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
         Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
                 modelViewMatrix, 0);
@@ -1045,30 +1045,35 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
    * <p>We'll rotate it around the Y-axis so it's out of sight, and then up or down by a little bit.
    */
   private void hideObject() {
-    float[] rotationMatrix = new float[16];
-    float[] posVeca = {0,0,-1,1};
-    float[] posVec = {0,0,0,1};
+//    float[] rotationMatrix = new float[16];
+//    float[] posVeca = {0,0,-1,1};
+//    float[] posVec = {0,0,0,1};
+//
+//    // First rotate in XZ plane, between 90 and 270 deg away, and scale so that we vary
+//    // the object's distance from the user.
+//    float angleXZ = (float) Math.random() * 180 - 90;
+//    Matrix.setRotateM(rotationMatrix, 0, angleXZ, 0f, 1f, 0f);
+////    float oldObjectDistance = objectDistance;
+//    objectDistance = (float) Math.random() * 3 + 1;
+//
+//    float objectScalingFactor = objectDistance;// / oldObjectDistance;
+//    Matrix.scaleM(rotationMatrix, 0, objectScalingFactor, objectScalingFactor,
+//        objectScalingFactor);
+//    Matrix.multiplyMV(posVec, 0, rotationMatrix, 0, posVeca, 0);
+//
+//    // Now get the up or down angle, between -20 and 20 degrees.
+////    float angleY = (float) Math.random() * 80 - 40; // Angle in Y plane, between -40 and 40.
+////    angleY = (float) Math.toRadians(angleY);
+////    float newY = (float) Math.tan(angleY) * objectDistance;
+//    float newY = (float) Math.random() * (floorDepth -0.04f) * 2 - (floorDepth -0.04f);
+//    Log.i(TAG, "hideObject() Radi: XZ: " + angleXZ + "  R: " + objectDistance);
+//    Log.i(TAG, "hideObject() Cart:  X: " + posVec[0] + "  Y(Height): " + newY + "  Z: " + posVec[2]);
+//    cubePos = new float[] {posVec[0], newY, posVec[2]};
 
-    // First rotate in XZ plane, between 90 and 270 deg away, and scale so that we vary
-    // the object's distance from the user.
-    float angleXZ = (float) Math.random() * 180 - 90;
-    Matrix.setRotateM(rotationMatrix, 0, angleXZ, 0f, 1f, 0f);
-//    float oldObjectDistance = objectDistance;
-    objectDistance = (float) Math.random() * 3 + 1;
-
-    float objectScalingFactor = objectDistance;// / oldObjectDistance;
-    Matrix.scaleM(rotationMatrix, 0, objectScalingFactor, objectScalingFactor,
-        objectScalingFactor);
-    Matrix.multiplyMV(posVec, 0, rotationMatrix, 0, posVeca, 0);
-
-    // Now get the up or down angle, between -20 and 20 degrees.
-//    float angleY = (float) Math.random() * 80 - 40; // Angle in Y plane, between -40 and 40.
-//    angleY = (float) Math.toRadians(angleY);
-//    float newY = (float) Math.tan(angleY) * objectDistance;
-    float newY = (float) Math.random() * (floorDepth -0.04f) * 2 - (floorDepth -0.04f);
-    Log.i(TAG, "hideObject() Radi: XZ: " + angleXZ + "  R: " + objectDistance);
-    Log.i(TAG, "hideObject() Cart:  X: " + posVec[0] + "  Y(Height): " + newY + "  Z: " + posVec[2]);
-    cubePos = new float[] {posVec[0], newY, posVec[2]};
+    cubePos = new float[3];
+    cubePos[0] = (float)Math.random() * 7.0f - 3.5f;
+    cubePos[1] = (float)Math.random() * 7.0f - 3.5f;
+    cubePos[2] = -((float)Math.random() * 3.0f + 0.5f);
 
     for (int i=0; i<3; i++) {
       if (mode > 2)
@@ -1076,7 +1081,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       else
         cubeVel[i] = 0;
       if (mode == 4)
-        cubeAccel[i] = (float) Math.random() * 0.4f - 0.8f;
+        cubeAccel[i] = (float) Math.random() * 0.4f - 0.2f;
       else
         cubeAccel[i] = 0;
     }
