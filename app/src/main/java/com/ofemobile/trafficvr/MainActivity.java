@@ -800,7 +800,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
                 modelViewMatrix, 0);
 //      Log.v(TAG, "Trans" +trans + " frameNo " + frameNo + " signFadeFrame " + signFadeFrame);
         drawRect(signTexture, trans);
-        drawAxis();
       }
     }
 
