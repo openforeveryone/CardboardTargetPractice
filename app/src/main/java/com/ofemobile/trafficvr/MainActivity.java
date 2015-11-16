@@ -142,6 +142,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] modelViewMatrix;
   private float[] modelFloor;
   private float[] modelProjectile;
+  private float[] projectileRotation;
   private float[] modelBeam;
   private float[] modelFlare;
   private float[] modelMatrix;
@@ -245,6 +246,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     modelBeam = new float[16];
     modelMatrix = new float[16];
     modelFlare = new float[16];
+    projectileRotation = new float[16];
+    Matrix.setIdentityM(projectileRotation, 0);
     vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
 
@@ -578,7 +581,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       hideObject();
 
     // Build the Model part of the ModelView matrix.
-    Matrix.rotateM(modelCube, 0, TIME_DELTA, 0.5f, 0.5f, 1.0f);
+    Matrix.rotateM(projectileRotation, 0, 3*TIME_DELTA, 0.5f, 0.5f, 1.0f);
 
     // Build the camera matrix and apply it to the ModelView.
     Matrix.setLookAtM(camera, 0, 0.0f, 0.0f, CAMERA_Z, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
@@ -760,8 +763,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       drawCube();
     }
 
-    Matrix.setIdentityM(modelProjectile, 0);
-    Matrix.translateM(modelProjectile, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
+    float[] modelProjectilei = new float[16];
+    Matrix.setIdentityM(modelProjectilei, 0);
+    Matrix.translateM(modelProjectilei, 0, projectilePos[0], projectilePos[1], projectilePos[2]);
+    Matrix.multiplyMM(modelProjectile, 0, modelProjectilei, 0, projectileRotation, 0);
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelProjectile, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
     drawProjectile();
@@ -953,7 +958,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(flareModelViewProjectionParam, 1, false, modelViewProjection, 0);
-    GLES20.glUniform1f(flareRadiusParam, ((float)(frameNo-flareStartFrame))/50f);
+    GLES20.glUniform1f(flareRadiusParam, ((float) (frameNo - flareStartFrame)) /50f);
 
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
     checkGLError("Drawing Rect");
@@ -1094,19 +1099,19 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
    *
    * @return true if the user is looking at the object.
    */
-  private boolean isLookingAtObject() {
-    float[] initVec = { 0, 0, 0, 1.0f };
-    float[] objPositionVec = new float[4];
-
-    // Convert object space to camera space. Use the headView from onNewFrame.
-    Matrix.multiplyMM(modelViewMatrix, 0, headView, 0, modelCube, 0);
-    Matrix.multiplyMV(objPositionVec, 0, modelViewMatrix, 0, initVec, 0);
-
-    float pitch = (float) Math.atan2(objPositionVec[1], -objPositionVec[2]);
-    float yaw = (float) Math.atan2(objPositionVec[0], -objPositionVec[2]);
-
-    return Math.abs(pitch) < PITCH_LIMIT && Math.abs(yaw) < YAW_LIMIT;
-  }
+//  private boolean isLookingAtObject() {
+//    float[] initVec = { 0, 0, 0, 1.0f };
+//    float[] objPositionVec = new float[4];
+//
+//    // Convert object space to camera space. Use the headView from onNewFrame.
+//    Matrix.multiplyMM(modelViewMatrix, 0, headView, 0, modelCube, 0);
+//    Matrix.multiplyMV(objPositionVec, 0, modelViewMatrix, 0, initVec, 0);
+//
+//    float pitch = (float) Math.atan2(objPositionVec[1], -objPositionVec[2]);
+//    float yaw = (float) Math.atan2(objPositionVec[0], -objPositionVec[2]);
+//
+//    return Math.abs(pitch) < PITCH_LIMIT && Math.abs(yaw) < YAW_LIMIT;
+//  }
 
   Handler mainLoopHandler = new Handler(Looper.getMainLooper());
 
