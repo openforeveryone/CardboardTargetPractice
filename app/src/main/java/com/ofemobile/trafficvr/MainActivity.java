@@ -792,7 +792,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         //Draw Sign:
         Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-        Matrix.rotateM(modelMatrix, 0, 90*i, 0, 1, 0);
+        Matrix.rotateM(modelMatrix, 0, 90 * i, 0, 1, 0);
         Matrix.translateM(modelMatrix, 0, 0.1f, -0.05f, -3.5f);
         Matrix.scaleM(modelMatrix, 0, .5f, .5f, .5f);
         Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
@@ -803,14 +803,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       }
     }
 
-    if (frameNo-flareStartFrame > 0 && frameNo-flareStartFrame < 51) {
-      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelFlare, 0);
-      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
-      drawFlare();
-    }
-//    GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-//    drawAxis();
-//    GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
     float invHeadView[] = new float[16];
     Matrix.invertM(invHeadView, 0, headView, 0);
@@ -823,6 +815,15 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
               modelViewMatrix, 0);
       drawBeam();
     }
+
+    GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+    if (frameNo-flareStartFrame > 0 && frameNo-flareStartFrame < 51) {
+      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelFlare, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
+      drawFlare();
+    }
+//    drawAxis();
+    GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
     //Draw the Reticle (this must be done last due to transparency)
     Matrix.setIdentityM(modelMatrix, 0);
