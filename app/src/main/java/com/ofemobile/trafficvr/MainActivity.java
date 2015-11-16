@@ -97,6 +97,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int beamProgram;
   private int txProgram;
   private int plainProgram;
+  private int flareProgram;
 
   private int cubePositionParam;
   private int cubeNormalParam;
@@ -128,6 +129,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int plainPositionParam;
   private int plainColorParam;
 
+  private int flareModelViewProjectionParam;
+  private int flareRadiusParam;
+  private int flarePositionParam;
+  private int flareCoordParam;
+
   private float[] modelCube;
   private float[] camera;
   private float[] viewMatrix;
@@ -137,6 +143,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] modelFloor;
   private float[] modelProjectile;
   private float[] modelBeam;
+  private float[] modelFlare;
   private float[] modelMatrix;
 
   private float[] projectilePos = {1,0,0,1};
@@ -166,7 +173,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private boolean beamFiring = false;
   private float beamDist = 0;
   boolean beamHit = false;
-
+  int flareStartFrame = -51;
 
 
   /**
@@ -237,6 +244,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     modelProjectile = new float[16];
     modelBeam = new float[16];
     modelMatrix = new float[16];
+    modelFlare = new float[16];
     vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
 
@@ -364,6 +372,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     int passthroughShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.passthrough_fragment);
     int textureFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.texture_fragment);
     int plainvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.plain_vertex);
+    int flareFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.flare_fragment);
 
     cubeProgram = GLES20.glCreateProgram();
     GLES20.glAttachShader(cubeProgram, vertexShader);
@@ -456,6 +465,21 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glEnableVertexAttribArray(plainPositionParam);
     GLES20.glEnableVertexAttribArray(plainColorParam);
     checkGLError("Plain program params");
+
+    flareProgram = GLES20.glCreateProgram();
+    GLES20.glAttachShader(flareProgram, gridvertexShader);
+    GLES20.glAttachShader(flareProgram, flareFragShader);
+    GLES20.glLinkProgram(flareProgram);
+    GLES20.glUseProgram(flareProgram);
+    checkGLError("Flare program");
+
+    flareModelViewProjectionParam = GLES20.glGetUniformLocation(flareProgram, "u_MVP");
+    flareRadiusParam = GLES20.glGetUniformLocation(flareProgram, "u_Radius");
+    flarePositionParam = GLES20.glGetAttribLocation(flareProgram, "a_Position");
+    flareCoordParam = GLES20.glGetAttribLocation(flareProgram, "a_Coord");
+    GLES20.glEnableVertexAttribArray(flarePositionParam);
+    GLES20.glEnableVertexAttribArray(flareCoordParam);
+    checkGLError("Flare program params");
 
     //Create the textures:
     int[] textures = new int[2];
@@ -638,6 +662,20 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             beamHit = true;
             shotFinished(2);
             //Should now create flare effect
+            //This is cheating, will not work if beam coming from another point:
+            float[] billboardt = new float[16];
+            float[] billboardr = new float[16];
+            float[] billboardir = new float[16];
+//            float invHeadView[] = new float[16];
+//            Matrix.invertM(invHeadView, 0, headView, 0);
+            Matrix.setIdentityM(billboardt, 0);
+            Matrix.setLookAtM(billboardr, 0, 0, 0, 0, intPositionVec[0], intPositionVec[1], intPositionVec[2], 0, 1, 0);
+            Matrix.invertM(billboardir, 0, billboardr, 0);
+            Matrix.translateM(billboardt, 0, intPositionVec[0], intPositionVec[1], intPositionVec[2]);
+            Matrix.multiplyMM(modelFlare, 0, billboardt, 0, billboardir, 0);
+//            Matrix.multiplyMM(modelFlare, 0, billboardt, 0, invHeadView, 0);
+//            Matrix.scaleM(modelFlare, 0, .5f, .5f, .5f);
+            flareStartFrame=frameNo;
             hideObject();
             break;
           }
@@ -765,6 +803,15 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       }
     }
 
+    if (frameNo-flareStartFrame > 0 && frameNo-flareStartFrame < 51) {
+      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelFlare, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
+      drawFlare();
+    }
+//    GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+//    drawAxis();
+//    GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+
     float invHeadView[] = new float[16];
     Matrix.invertM(invHeadView, 0, headView, 0);
     if (beamFiring) {
@@ -890,6 +937,23 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     checkGLError("Drawing Rect");
     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
     checkGLError("Drawing Rect");
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
+    checkGLError("Drawing Rect");
+  }
+
+  public void drawFlare() {
+    GLES20.glUseProgram(flareProgram);
+
+    // Set the position of the beam
+    GLES20.glVertexAttribPointer(flarePositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, 0, rectVertices);
+    GLES20.glVertexAttribPointer(flareCoordParam, 2, GLES20.GL_FLOAT, false, 0,
+            rectTXCoords);
+
+    // Set the ModelViewProjection matrix in the shader.
+    GLES20.glUniformMatrix4fv(flareModelViewProjectionParam, 1, false, modelViewProjection, 0);
+    GLES20.glUniform1f(flareRadiusParam, ((float)(frameNo-flareStartFrame))/50f);
+
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
     checkGLError("Drawing Rect");
   }
