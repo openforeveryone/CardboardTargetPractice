@@ -138,6 +138,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] camera;
   private float[] viewMatrix;
   private float[] headView;
+  private float[] invHeadView;
   private float[] modelViewProjection;
   private float[] modelViewMatrix;
   private float[] modelFloor;
@@ -145,6 +146,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] projectileRotation;
   private float[] modelBeam;
   private float[] modelFlare;
+  private float[] modelReticle;
   private float[] modelMatrix;
 
   private float[] projectilePos = {1,0,0,1};
@@ -156,7 +158,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
 
   private float[] forwardVector = {0,0,0};
-  
+
   private int score = 0;
   private int shots = 10;
   private int mode = 1;
@@ -242,10 +244,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     modelViewMatrix = new float[16];
     modelFloor = new float[16];
     headView = new float[16];
+    invHeadView = new float[16];
     modelProjectile = new float[16];
     modelBeam = new float[16];
     modelMatrix = new float[16];
     modelFlare = new float[16];
+    modelReticle = new float[16];
     projectileRotation = new float[16];
     Matrix.setIdentityM(projectileRotation, 0);
     vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
@@ -261,6 +265,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Log.i(TAG, "Not in UI thread");
 
     reset();
+
+    getCardboardView().getCardboardDeviceParams();
   }
 
   @Override
@@ -516,6 +522,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.setIdentityM(modelFloor, 0);
     Matrix.translateM(modelFloor, 0, 0, -floorDepth, 0); // Floor appears below user.
 
+    show3DToast("Find the target cube then pull the magnet", 10000);
+
     checkGLError("onSurfaceCreated");
   }
 
@@ -543,7 +551,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   }
 
   public void reset() {
-    shots=2;
+    shots=10;
     mode=1;
     score=0;
   }
@@ -587,6 +595,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Matrix.setLookAtM(camera, 0, 0.0f, 0.0f, CAMERA_Z, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     headTransform.getHeadView(headView, 0);
+    Matrix.invertM(invHeadView, 0, headView, 0);
     headTransform.getForwardVector(forwardVector, 0);
 
     for(int i=0; i<3; i++)
@@ -618,7 +627,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       }
     }
 
-    if (beamFiring) {
+    if (!beamFiring) {
+//          Log.i(TAG, "Updating beam matrix");
+      Matrix.setIdentityM(modelBeam, 0);
+      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
+    }
+
+    if (mode > 1) {
+//      Log.i(TAG, "Checking to see if the ray has hit a target");
       //Check to see if the ray has hit a target
       //We what to interpollate between these:
       //            0.2f, -0.75f, 0f,
@@ -640,27 +656,49 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 //        Log.i(TAG, "positionVec1 " + positionVec1[0] + "  " + positionVec1[1] + "  " + positionVec1[2]);
 //        Log.i(TAG, "positionVec2 " + positionVec2[0] + "  " + positionVec2[1] + "  " + positionVec2[2]);
 //      }
-      for (float interoplateFactor = 0; interoplateFactor < 1; interoplateFactor += 0.01) {
-        //Don't test points the beam has not reached
-        if (interoplateFactor*10.0 > beamDist) {
+      for (float roughInteroplateFactor = 0; roughInteroplateFactor < 1; roughInteroplateFactor += 0.01) {
 //          Log.i(TAG, "interoplateFactor " + interoplateFactor + " beamDist " + beamDist);
-          break;
+        boolean hit = true;
+        for (int i = 0; i < 3; i++) {
+          intPositionVec[i] = roughInteroplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
+          if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.12f)
+            hit = false;
         }
-        //Don't test points the end of the beam has gone past
-        if (interoplateFactor*10.0 > (beamDist-10)) {
-          boolean hit = true;
-          for (int i = 0; i < 3; i++) {
-            intPositionVec[i] = interoplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
-            if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.12f)
-              hit = false;
+        if (hit)
+        {
+//          Log.i(TAG, "Rough search made hit at: int:"+roughInteroplateFactor+" X: " + intPositionVec[0] + "  Y: " + intPositionVec[1] + "  Z: " + intPositionVec[2]);
+          for (float interoplateFactor = roughInteroplateFactor-0.005f; interoplateFactor < roughInteroplateFactor+0.005f; interoplateFactor += 0.001f)
+          {
+            hit = true;
+            for (int i = 0; i < 3; i++) {
+              intPositionVec[i] = interoplateFactor * (positionVec2[i] - positionVec1[i]) + positionVec1[i];
+              if (Math.abs(intPositionVec[i] - cubePos[i]) > 0.12f)
+                hit = false;
+            }
+            if (hit) {
+//              Log.i(TAG, "Precise search made hit at: int:"+interoplateFactor+" X: " + intPositionVec[0] + "  Y: " + intPositionVec[1] + "  Z: " + intPositionVec[2]);
+              break;
+            }
           }
+          if (!hit)
+            Log.e(TAG, "Error: Precise search failed");
+        }
+        boolean wallhit = false;
+          if (Math.abs(intPositionVec[0]) >= 4f)
+            wallhit = true;
+          if (Math.abs(intPositionVec[2]) >= 4f)
+            wallhit = true;
+          if (intPositionVec[1] <= -1.5f)
+            wallhit = true;
+          if (intPositionVec[1] >= 4.0f-1.5f)
+            wallhit = true;
 //          if (beamDist < 0.5)
 //            Log.i(TAG, "Int: " + interoplateFactor + " test point:"
 //                    + intPositionVec[0] + "  " + intPositionVec[1] + "  " + intPositionVec[2] + " Diff: "
 //                    + Math.abs(intPositionVec[0] - cubePos[0]) + "  "
 //                    + Math.abs(intPositionVec[1] - cubePos[1]) + "  "
 //                    + Math.abs(intPositionVec[2] - cubePos[2]));
-          if (hit) {
+          if (beamFiring && hit && roughInteroplateFactor*10.0 < beamDist && roughInteroplateFactor*10.0 > (beamDist-10)) {
             Log.i(TAG, "Object hit by beam");
             beamHit = true;
             shotFinished(2);
@@ -680,12 +718,37 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             Matrix.scaleM(modelFlare, 0, .5f, .5f, .5f);
             flareStartFrame=frameNo;
             hideObject();
+          }
+          if (hit || wallhit)
+          {
+//            Log.i(TAG, "The ray has hit a target " + intPositionVec[0] + " " + intPositionVec[1] + " " +  intPositionVec[2]);
+            float[] billboardt = new float[16];
+            float[] billboardr = new float[16];
+            float[] billboardir = new float[16];
+            Matrix.setIdentityM(billboardt, 0);
+            Matrix.setLookAtM(billboardr, 0, 0, 0, 0, intPositionVec[0], intPositionVec[1], intPositionVec[2], 0, 1, 0);
+            Matrix.invertM(billboardir, 0, billboardr, 0);
+            Matrix.translateM(billboardt, 0, intPositionVec[0], intPositionVec[1], intPositionVec[2]);
+            if (hit)
+              Matrix.translateM(billboardt, 0, 0.0f, 0.0f, 0.0f);
+            else
+              Matrix.translateM(billboardt, 0, 0.0f, 0.0f, 0.01f);
+            Matrix.multiplyMM(modelReticle, 0, billboardt, 0, billboardir, 0);
+//            Matrix.multiplyMM(modelFlare, 0, billboardt, 0, invHeadView, 0);
+            Matrix.scaleM(modelReticle, 0, .25f/2f, .25f/2f, .25f/2f);
             break;
           }
         }
-      }
 //      if(beamDist<0.5)
 //        Log.v(TAG, "Cube pos: " + cubePos[0] + "  " + cubePos[1] + "  "+ cubePos[2] + "  ");
+    }else
+    {
+//      Log.i(TAG, "Set the Reticle in fixed pos");
+      //We are on level one (or game over screen) Reticle in fixed pos
+      Matrix.setIdentityM(modelReticle, 0);
+      Matrix.translateM(modelReticle, 0, 0, 0, -1.5f);
+      Matrix.scaleM(modelReticle, 0, .05f, .05f, .05f);
+      Matrix.multiplyMM(modelReticle, 0, invHeadView, 0, modelReticle, 0);
     }
 
     if (textimagelock.tryLock()) {
@@ -779,7 +842,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-    Matrix.translateM(modelMatrix, 0, 2, -1, -2);
+    Matrix.translateM(modelMatrix, 0, 2, -floorDepth+0.1f, -2);
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
     Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
             modelViewMatrix, 0);
@@ -788,12 +851,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glEnable(GLES20.GL_BLEND);
     GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
 
-
     float trans = 1f;
-    if (frameNo>signFadeFrame)
-      trans = 1-(((float) frameNo-(float) signFadeFrame) / 100f);
-    if (signTextureReady && frameNo<(signFadeFrame+100)) {
-      for (int i =0; i<4; i++) {
+    if (frameNo > signFadeFrame)
+      trans = 1 - (((float) frameNo - (float) signFadeFrame) / 100f);
+    if (signTextureReady && frameNo < (signFadeFrame + 100)) {
+      for (int i = 0; i < 4; i++) {
         //Draw Sign:
         Matrix.setIdentityM(modelMatrix, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
@@ -808,9 +870,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       }
     }
 
-
-    float invHeadView[] = new float[16];
-    Matrix.invertM(invHeadView, 0, headView, 0);
     if (beamFiring) {
 //      Matrix.setIdentityM(modelBeam, 0);
 //    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
@@ -827,20 +886,25 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
       drawFlare();
     }
+
+//    if (!beamFiring && !(frameNo-flareStartFrame > 0 && frameNo-flareStartFrame < 51))
+//    {
 //    drawAxis();
+
+//    if (mode<2) {
+      //Draw the Reticle (this must be done last due to transparency)
+//      Matrix.setIdentityM(modelMatrix, 0);
+//      Matrix.translateM(modelMatrix, 0, 0, 0, -1.5f);
+//      Matrix.scaleM(modelMatrix, 0, .05f, .05f, .05f);
+//      Matrix.multiplyMM(modelMatrix, 0, invHeadView, 0, modelMatrix, 0);
+      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelReticle, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+              modelViewMatrix, 0);
+      drawRect(reticleTexture, 1);
     GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
-    //Draw the Reticle (this must be done last due to transparency)
-    Matrix.setIdentityM(modelMatrix, 0);
-    Matrix.translateM(modelMatrix, 0, 0, 0, -1.5f);
-    Matrix.scaleM(modelMatrix, 0, .05f, .05f, .05f);
-    Matrix.multiplyMM(modelMatrix, 0, invHeadView, 0, modelMatrix, 0);
-    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
-    drawRect(reticleTexture, 1);
-
-    GLES20.glDisable(GLES20.GL_BLEND);
+      GLES20.glDisable(GLES20.GL_BLEND);
+//    }
 
   }
 
@@ -1015,13 +1079,18 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   @Override
   public void onCardboardTrigger() {
     Log.i(TAG, "onCardboardTrigger");
+//    hideObject();
 
 //    vibrator.vibrate(50);
     if (mode == 1 && out && shots > 0) {
       Log.i(TAG, "Throwing");
       projectilePos = new float[]{0, -.75f, 0, 1};
-      projectileVelocity = new float[]{-forwardVector[0] * 5, (1 - forwardVector[1]) * 5, forwardVector[2] * 5, 0};
-      Log.i(TAG, "Forward Vect: " + forwardVector[0] + " " + forwardVector[1] + " " + forwardVector[2]);
+      float[] projectileVelocityVS = new float[]{0, 4, -8, 1};
+      Matrix.multiplyMV(projectileVelocity, 0, invHeadView, 0, projectileVelocityVS, 0);
+
+//      projectileVelocity = new float[]{-forwardVector[0] * 5, (1 - forwardVector[1]) * 5, forwardVector[2] * 5, 0};
+//      Log.i(TAG, "Forward Vect: " + forwardVector[0] + " " + forwardVector[1] + " " + forwardVector[2]);
+      Log.i(TAG, "projectileVelocity Vect: " + projectileVelocity[0] + " " + projectileVelocity[1] + " " + projectileVelocity[2]);
       out = false;
       shots--;
     }
@@ -1032,8 +1101,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       if (!beamFiring) {
         beamFiring = true;
         beamHit = false;
-        float invHeadView[] = new float[16];
-        Matrix.invertM(invHeadView, 0, headView, 0);
         Matrix.setIdentityM(modelBeam, 0);
         Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
       }
@@ -1080,6 +1147,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     cubePos[1] = (float)Math.random() * 7.0f - 3.5f;
     cubePos[2] = -((float)Math.random() * 3.0f + 0.5f);
 
+    cubePos[0] = (float)Math.random() * 1.0f - 0.5f;
+    cubePos[1] = 0f;
+    cubePos[2] = -(2f);
+
     for (int i=0; i<3; i++) {
       if (mode > 2)
         cubeVel[i] = (float) Math.random() * 2.0f - 1.0f;
@@ -1090,6 +1161,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       else
         cubeAccel[i] = 0;
     }
+    Log.i(TAG, "cubePos:  X: " + cubePos[0] + "  Y: " + cubePos[1] + "  Z: " + cubePos[2]);
     Log.i(TAG, "cubeVel:  X: " + cubeVel[0] + "  Y: " + cubeVel[1] + "  Z: " + cubeVel[2]);
 
   }
@@ -1241,7 +1313,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
       reticleBitmaplock.lock();
       // Create an empty, mutable textBitmap
-      reticleBitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_4444);
+      int textSize = 32;
+      reticleBitmap = Bitmap.createBitmap(textSize, textSize, Bitmap.Config.ARGB_4444);
 
       reticleBitmap.eraseColor(Color.TRANSPARENT); //White
 
@@ -1249,12 +1322,14 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Canvas canvas = new Canvas(reticleBitmap);
       Paint paint=new Paint();
       paint.setAntiAlias(true);
-      paint.setStrokeWidth(2);
+      paint.setStrokeWidth(2f/(float)textSize);
       paint.setColor(Color.DKGRAY);
 
-      canvas.translate(16, 16);
-      canvas.drawLine(-14, -14, 14, 14, paint);
-      canvas.drawLine(14, -14, -14, 14, paint);
+      canvas.translate(textSize/2, textSize/2);
+      canvas.scale((float)textSize/2f,(float)textSize/2f);
+      float rectFact = 7f/8f;
+      canvas.drawLine(-rectFact, -rectFact, rectFact, rectFact, paint);
+      canvas.drawLine(rectFact, -rectFact, -rectFact, rectFact, paint);
 
       reticleRenderFinished=true;
       reticleBitmaplock.unlock();
