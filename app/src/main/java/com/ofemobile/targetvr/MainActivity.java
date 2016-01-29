@@ -1233,7 +1233,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
       reticleBitmaplock.lock();
       // Create an empty, mutable textBitmap
-      int textSize = 32;
+      int textSize = 128;
       reticleBitmap = Bitmap.createBitmap(textSize, textSize, Bitmap.Config.ARGB_4444);
 
       reticleBitmap.eraseColor(Color.TRANSPARENT); //White
@@ -1242,7 +1242,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Canvas canvas = new Canvas(reticleBitmap);
       Paint paint=new Paint();
       paint.setAntiAlias(true);
-      paint.setStrokeWidth(2f/(float)textSize);
+      paint.setStrokeWidth(1f/(float)textSize*3f);
       paint.setColor(Color.DKGRAY);
 
       canvas.translate(textSize/2, textSize/2);
