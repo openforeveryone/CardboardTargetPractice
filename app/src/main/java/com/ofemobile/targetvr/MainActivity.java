@@ -733,7 +733,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     }
 
     if (!beamFiring) {
-//          Log.i(TAG, "Updating beam matrix");
       Matrix.setIdentityM(modelBeam, 0);
       Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
     }
@@ -757,10 +756,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         positionVec1[i]=positionVec1[i]/positionVec1[3];
       for (int i=0; i<3; i++)
         positionVec2[i]=positionVec2[i]/positionVec2[3];
-//      if(beamDist<0.5) {
-//        Log.i(TAG, "positionVec1 " + positionVec1[0] + "  " + positionVec1[1] + "  " + positionVec1[2]);
-//        Log.i(TAG, "positionVec2 " + positionVec2[0] + "  " + positionVec2[1] + "  " + positionVec2[2]);
-//      }
       for (float roughInteroplateFactor = 0; roughInteroplateFactor < 1; roughInteroplateFactor += 0.01) {
 //          Log.i(TAG, "interoplateFactor " + interoplateFactor + " beamDist " + beamDist);
         boolean hit = true;
@@ -844,8 +839,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             break;
           }
         }
-//      if(beamDist<0.5)
-//        Log.v(TAG, "Cube pos: " + cubePos[0] + "  " + cubePos[1] + "  "+ cubePos[2] + "  ");
     }else
     {
 //      Log.i(TAG, "Set the Reticle in fixed pos");
@@ -1081,16 +1074,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
 //     Set modelViewMatrix for the floor, so we draw floor in the correct location
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelFloor, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
     drawFloor();
 
     Matrix.setIdentityM(modelMatrix, 0);
-//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
     Matrix.translateM(modelMatrix, 0, 2, -floorDepth+0.1f, -2);
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
     drawAxis();
 
     GLES20.glEnable(GLES20.GL_BLEND);
@@ -1116,12 +1106,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     }
 
     if (beamFiring) {
-//      Matrix.setIdentityM(modelBeam, 0);
-//    Matrix.rotateM(modelBeam, 0, 45, 0, 1, 0);
-//      Matrix.multiplyMM(modelBeam, 0, invHeadView, 0, modelBeam, 0);
       Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelBeam, 0);
-      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-              modelViewMatrix, 0);
+      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
       drawBeam();
     }
 
@@ -1132,25 +1118,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       drawFlare();
     }
 
-//    if (!beamFiring && !(frameNo-flareStartFrame > 0 && frameNo-flareStartFrame < 51))
-//    {
-//    drawAxis();
-
-//    if (mode<2) {
-    //Draw the Reticle (this must be done last due to transparency)
-//      Matrix.setIdentityM(modelMatrix, 0);
-//      Matrix.translateM(modelMatrix, 0, 0, 0, -1.5f);
-//      Matrix.scaleM(modelMatrix, 0, .05f, .05f, .05f);
-//      Matrix.multiplyMM(modelMatrix, 0, invHeadView, 0, modelMatrix, 0);
+      //Draw the Reticle (this must be done last due to transparency)
     Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelReticle, 0);
-    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-            modelViewMatrix, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelViewMatrix, 0);
     drawRect(reticleTexture, 1);
     GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-
     GLES20.glDisable(GLES20.GL_BLEND);
-//    }
-
   }
 
   @Override
@@ -1329,7 +1302,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   @Override
   public void onCardboardTrigger() {
     Log.i(TAG, "onCardboardTrigger");
-//    hideObject();
 
 //    vibrator.vibrate(50);
     if (mode == 1 && out && shots > 0) {
@@ -1338,8 +1310,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       float[] projectileVelocityVS = new float[]{0, 4, -8, 1};
       Matrix.multiplyMV(projectileVelocity, 0, invHeadView, 0, projectileVelocityVS, 0);
 
-//      projectileVelocity = new float[]{-forwardVector[0] * 5, (1 - forwardVector[1]) * 5, forwardVector[2] * 5, 0};
-//      Log.i(TAG, "Forward Vect: " + forwardVector[0] + " " + forwardVector[1] + " " + forwardVector[2]);
       Log.i(TAG, "projectileVelocity Vect: " + projectileVelocity[0] + " " + projectileVelocity[1] + " " + projectileVelocity[2]);
       out = false;
       shots--;
@@ -1367,31 +1337,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
    * <p>We'll rotate it around the Y-axis so it's out of sight, and then up or down by a little bit.
    */
   private void hideObject() {
-//    float[] rotationMatrix = new float[16];
-//    float[] posVeca = {0,0,-1,1};
-//    float[] posVec = {0,0,0,1};
-//
-//    // First rotate in XZ plane, between 90 and 270 deg away, and scale so that we vary
-//    // the object's distance from the user.
-//    float angleXZ = (float) Math.random() * 180 - 90;
-//    Matrix.setRotateM(rotationMatrix, 0, angleXZ, 0f, 1f, 0f);
-////    float oldObjectDistance = objectDistance;
-//    objectDistance = (float) Math.random() * 3 + 1;
-//
-//    float objectScalingFactor = objectDistance;// / oldObjectDistance;
-//    Matrix.scaleM(rotationMatrix, 0, objectScalingFactor, objectScalingFactor,
-//        objectScalingFactor);
-//    Matrix.multiplyMV(posVec, 0, rotationMatrix, 0, posVeca, 0);
-//
-//    // Now get the up or down angle, between -20 and 20 degrees.
-////    float angleY = (float) Math.random() * 80 - 40; // Angle in Y plane, between -40 and 40.
-////    angleY = (float) Math.toRadians(angleY);
-////    float newY = (float) Math.tan(angleY) * objectDistance;
-//    float newY = (float) Math.random() * (floorDepth -0.04f) * 2 - (floorDepth -0.04f);
-//    Log.i(TAG, "hideObject() Radi: XZ: " + angleXZ + "  R: " + objectDistance);
-//    Log.i(TAG, "hideObject() Cart:  X: " + posVec[0] + "  Y(Height): " + newY + "  Z: " + posVec[2]);
-//    cubePos = new float[] {posVec[0], newY, posVec[2]};
-
     cubePos = new float[3];
     cubePos[0] = (float)Math.random() * 7.0f - 3.5f;
     cubePos[1] = (float)Math.random() * 7.0f - 3.5f;
@@ -1415,25 +1360,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     Log.i(TAG, "cubeVel:  X: " + cubeVel[0] + "  Y: " + cubeVel[1] + "  Z: " + cubeVel[2]);
 
   }
-
-  /**
-   * Check if user is looking at object by calculating where the object is in eye-space.
-   *
-   * @return true if the user is looking at the object.
-   */
-//  private boolean isLookingAtObject() {
-//    float[] initVec = { 0, 0, 0, 1.0f };
-//    float[] objPositionVec = new float[4];
-//
-//    // Convert object space to camera space. Use the headView from onNewFrame.
-//    Matrix.multiplyMM(modelViewMatrix, 0, headView, 0, modelCube, 0);
-//    Matrix.multiplyMV(objPositionVec, 0, modelViewMatrix, 0, initVec, 0);
-//
-//    float pitch = (float) Math.atan2(objPositionVec[1], -objPositionVec[2]);
-//    float yaw = (float) Math.atan2(objPositionVec[0], -objPositionVec[2]);
-//
-//    return Math.abs(pitch) < PITCH_LIMIT && Math.abs(yaw) < YAW_LIMIT;
-//  }
 
   Handler mainLoopHandler = new Handler(Looper.getMainLooper());
 
@@ -1476,13 +1402,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       RectF rectF = new RectF(0f,64f,256f,64f+128f);
       canvas.drawRoundRect(rectF, 7, 7, paint);
 
-      // get a background image from resources
-// note the image format must match the textBitmap format
-//    Drawable background = overlayView.getResources().getDrawable(R.drawable.background);
-//    background.setBounds(0, 0, 256, 128);
-//    background.draw(canvas); // draw the background to our textBitmap
-
-
       TextPaint mTextPaint=new TextPaint();
       mTextPaint.setTextSize(32);
       mTextPaint.setAntiAlias(true);
@@ -1495,8 +1414,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
               Layout.Alignment.ALIGN_CENTER, 1.0f, 0.0f, false);
 
       canvas.save();
-// calculate x and y position where your text will be placed
 
+// calculate x and y position where your text will be placed
       int textX = 0;
       int textY = (128-mTextLayout.getHeight())/2 + 64;
 
