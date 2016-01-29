@@ -110,6 +110,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int txProgram;
   private int plainProgram;
   private int flareProgram;
+  private int stripProgram;
 
   private int cubePositionParam;
   private int cubeNormalParam;
@@ -146,6 +147,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int flarePositionParam;
   private int flareCoordParam;
 
+  private int stripModelViewProjectionParam;
+  private int stripPositionParam;
+  private int stripCoordParam;
+
   private float[] modelCube;
   private float[] camera;
   private float[] viewMatrix;
@@ -167,6 +172,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private float[] cubeVel = {0,0,0,0};
   private float[] cubeAccel = {0,0,0,0};
 
+  private float[] perspective;
 
 
   private float[] forwardVector = {0,0,0};
@@ -197,6 +203,13 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   EGLContext mScreenEglContext;
 
   private VideoEncoder mVideoEncoder;
+
+  float[] lookup = new float[16];
+  float[] lookdown = new float[16];
+
+  int stripFramebuffer;
+  int stripDepthRenderbuffer;
+  int stripTexture;
 
 
   /**
@@ -402,6 +415,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     int textureFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.texture_fragment);
     int plainvertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.plain_vertex);
     int flareFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.flare_fragment);
+    int stripFragShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.strip_fragment);
 
     cubeProgram = GLES20.glCreateProgram();
     GLES20.glAttachShader(cubeProgram, vertexShader);
@@ -510,6 +524,19 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glEnableVertexAttribArray(flareCoordParam);
     checkGLError("Flare program params");
 
+    //For vr video rendering:
+    stripProgram = GLES20.glCreateProgram();
+    GLES20.glAttachShader(stripProgram, gridvertexShader);
+    GLES20.glAttachShader(stripProgram, stripFragShader);
+    GLES20.glLinkProgram(stripProgram);
+    GLES20.glUseProgram(stripProgram);
+    checkGLError("Strip program");
+
+    stripModelViewProjectionParam = GLES20.glGetUniformLocation(stripProgram, "u_MVP");
+    stripPositionParam = GLES20.glGetAttribLocation(stripProgram, "a_Position");
+    stripCoordParam = GLES20.glGetAttribLocation(stripProgram, "a_Coord");
+    checkGLError("Tx program params");
+
     //Create the textures:
     int[] textures = new int[2];
 //Generate one signTexture pointer...
@@ -554,7 +581,49 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     //Setup the video surface and encoder
     mVideoEncoder = new VideoEncoder();
-    mVideoEncoder.prepare(320, 240, 2000000, mScreenEglContext);
+    //Full HD:
+    mVideoEncoder.prepare(1920, 1080, 16000000, mScreenEglContext);
+    //4K:
+//    mVideoEncoder.prepare(3840, 2160, 40000000, mScreenEglContext);
+
+    //Setup render to texture
+    int[] stripFramebufferArray = new int[1];
+    int[] stripTextureArray = new int[1];
+    int[] stripDepthRenderbufferArray = new int[1];
+    GLES20.glGenFramebuffers(1, stripFramebufferArray, 0);
+    stripFramebuffer=stripFramebufferArray[0];
+    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, stripFramebuffer);
+    GLES20.glGenTextures(1, stripTextureArray, 0);
+    stripTexture=stripTextureArray[0];
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, stripTexture);
+    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 2, mVideoEncoder.height()/2, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+
+    GLES20.glGenRenderbuffers(1, stripDepthRenderbufferArray, 0);
+    stripDepthRenderbuffer=stripDepthRenderbufferArray[0];
+    GLES20.glBindRenderbuffer(GLES20.GL_RENDERBUFFER, stripDepthRenderbuffer);
+    GLES20.glRenderbufferStorage(GLES20.GL_RENDERBUFFER, GLES20.GL_DEPTH_COMPONENT16, 2, mVideoEncoder.height()/2);
+
+    GLES20.glFramebufferRenderbuffer(GLES20.GL_FRAMEBUFFER, GLES20.GL_DEPTH_ATTACHMENT, GLES20.GL_RENDERBUFFER, stripDepthRenderbuffer);
+    GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, stripTexture, 0);
+
+
+    if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+      Log.e(TAG, "glCheckFramebufferStatus != GL_FRAMEBUFFER_COMPLETE");
+      finish();
+      return;
+    }
+
+    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+
+    Matrix.setIdentityM(lookup, 0);
+    Matrix.setIdentityM(lookdown, 0);
+    Matrix.rotateM(lookup, 0, -45, 1, 0, 0);
+    Matrix.rotateM(lookdown, 0, 45, 1, 0, 0);
 
     //Restore the rendering context
     EGL14.eglMakeCurrent(mScreenEglDisplay, mScreenEglDrawSurface,
@@ -598,6 +667,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   @Override
   public void onNewFrame(HeadTransform headTransform) {
     frameNo++;
+
+    checkGLError("onNewFrame");
 
     if (beamFiring) {
       beamDist += 0.4;
@@ -785,6 +856,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Matrix.multiplyMM(modelReticle, 0, invHeadView, 0, modelReticle, 0);
     }
 
+    checkGLError("onNewFrame");
+
     if (textimagelock.tryLock()) {
       if (textRenderFinished) {
         signTextureReady=true;
@@ -802,6 +875,15 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       reticleBitmaplock.unlock();
     }
 
+    //Autofire
+    if(frameNo==2)
+    {
+      projectilePos = new float[]{0, -.75f, 0, 1};
+      projectileVelocity = new float[]{0, 4, -8, 1};
+      Log.i(TAG, "Autofire projectileVelocity Vect: " + projectileVelocity[0] + " " + projectileVelocity[1] + " " + projectileVelocity[2]);
+      out = false;
+      shots--;
+    }
     checkGLError("onReadyToDraw");
 
     //Backup the screen context
@@ -810,14 +892,17 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     mScreenEglReadSurface = EGL14.eglGetCurrentSurface(EGL14.EGL_READ);
     mScreenEglContext = EGL14.eglGetCurrentContext();
 
-    if (frameNo<=100) {
+    int maxVideoFrames = 60;
+    if (frameNo<=maxVideoFrames) {
       //Switch to the recording context
       mVideoEncoder.inputSurface().makeCurrent();
       mVideoEncoder.drain(false);
-      generateSurfaceFrame(frameNo, mVideoEncoder.width(), mVideoEncoder.height());
+      Log.i(TAG, "Generating frame " + frameNo);
+      generateVideoFrame(mVideoEncoder.width(), mVideoEncoder.height());
+      mVideoEncoder.inputSurface().setPresentationTime((long)(frameNo*(1000000000f/30f)));
       mVideoEncoder.inputSurface().swapBuffers();
     }
-    if (frameNo==100)
+    if (frameNo==maxVideoFrames)
     {
       mVideoEncoder.drain(true);
       mVideoEncoder.release();
@@ -828,7 +913,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     EGL14.eglMakeCurrent(mScreenEglDisplay, mScreenEglDrawSurface,
             mScreenEglReadSurface, mScreenEglContext);
   }
-
 
   public void shotFinished(int scoreDelta) {
     score+=scoreDelta;
@@ -854,34 +938,102 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     show3DToast(message, messagetime);
   }
 
-  // RGB color values for generated frames
-  private static final int TEST_R0 = 0;
-  private static final int TEST_G0 = 136;
-  private static final int TEST_B0 = 0;
-  private static final int TEST_R1 = 236;
-  private static final int TEST_G1 = 50;
-  private static final int TEST_B1 = 186;
-  private void generateSurfaceFrame(int frameIndex, int width, int height) {
-    frameIndex %= 8;
+    private void generateVideoFrame(int width, int height) {
 
-    int startX, startY;
-    if (frameIndex < 4) {
-      // (0,0) is bottom-left in GL
-      startX = frameIndex * (width / 4);
-      startY = height / 2;
-    } else {
-      startX = (7 - frameIndex) * (width / 4);
-      startY = 0;
-    }
+      float ipd_2 = 0.06f/2f;
+      GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+      GLES20.glClearColor(0.2f, 0.0f, 0.0f, 1.0f);
+      GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+      GLES20.glClearColor(0.1f, 0.1f, 0.1f, 0.5f);
 
-    GLES20.glClearColor(TEST_R0 / 255.0f, TEST_G0 / 255.0f, TEST_B0 / 255.0f, 1.0f);
-    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+      perspective = new float[16];
+      Matrix.perspectiveM(perspective, 0, 90, (float)1/(float)height,0.5f,10);
 
-    GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-    GLES20.glScissor(startX, startY, width / 4, height / 2);
-    GLES20.glClearColor(TEST_R1 / 255.0f, TEST_G1 / 255.0f, TEST_B1 / 255.0f, 1.0f);
-    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-    GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+      // Apply the eye transformation to the camera.
+      float[] eye = new float[16];
+      Matrix.setIdentityM(eye, 0);
+      float[] halfEye = new float[16];
+      Matrix.setIdentityM(halfEye, 0);
+      float[] stripPaint = new float[16];
+      Matrix.setIdentityM(stripPaint, 0);
+      Matrix.scaleM(stripPaint, 0, 1f/(float)width, -1f/4f, 1);
+      Matrix.translateM(stripPaint, 0, 0, -3f, 0);
+      Matrix.translateM(stripPaint, 0, -((float)width-1f), 0, 0);
+
+      float[] eyePos = new float[16];
+      Matrix.setIdentityM(eyePos, 0);
+      Matrix.translateM(eyePos, 0, 0, -3f, 0);
+
+      Matrix.setIdentityM(viewMatrix, 0);
+      Matrix.multiplyMM(halfEye, 0, lookup, 0, eye, 0);
+      float[] rotation = new float[16];
+
+      //Pixel angular width:
+      float apwidth = 360f/(float)width;
+//      int whichEye = 0;
+//      int upDown = 1;
+      for (int whichEye = 0; whichEye<2; whichEye++) {
+        for (int upDown = 0; upDown<2; upDown++) {
+          if (upDown==0)
+            Matrix.multiplyMM(halfEye, 0, lookup, 0, eye, 0);
+          else
+            Matrix.multiplyMM(halfEye, 0, lookdown, 0, eye, 0);
+          for (int i = 0; i < width; i++) {
+            float angleDeg = apwidth * (float) i - 180;
+            float angleRad = -angleDeg / 360f * (2f * (float) Math.PI);
+            Matrix.setRotateM(rotation, 0, angleDeg, 0, 1, 0);
+            Matrix.setIdentityM(eyePos, 0);
+            if (whichEye==1)
+              Matrix.translateM(eyePos, 0, (float) -Math.cos(angleRad) * ipd_2, 0, (float) Math.sin(angleRad) * ipd_2);
+            else
+              Matrix.translateM(eyePos, 0, (float) -Math.cos(angleRad+Math.PI) * ipd_2, 0, (float) Math.sin(angleRad+Math.PI) * ipd_2);
+
+            Matrix.multiplyMM(viewMatrix, 0, eyePos, 0, camera, 0);
+            Matrix.multiplyMM(viewMatrix, 0, rotation, 0, viewMatrix, 0);
+            Matrix.multiplyMM(viewMatrix, 0, halfEye, 0, viewMatrix, 0);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, stripFramebuffer);
+            GLES20.glViewport(0, 0, 2, height/2);
+
+//        GLES20.glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+//        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+            renderScene();
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            GLES20.glViewport(0, 0, width, height);
+
+            GLES20.glUseProgram(stripProgram);
+            GLES20.glEnableVertexAttribArray(stripPositionParam);
+            GLES20.glEnableVertexAttribArray(stripCoordParam);
+            GLES20.glVertexAttribPointer(stripPositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+                    false, 0, rectVertices);
+            GLES20.glVertexAttribPointer(stripCoordParam, 2, GLES20.GL_FLOAT, false, 0,
+                    rectTXCoords);
+
+            GLES20.glUniformMatrix4fv(stripModelViewProjectionParam, 1, false, stripPaint, 0);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, stripTexture);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
+            checkGLError("Drawing");
+
+//      Move right 1px
+            Matrix.translateM(stripPaint, 0, 2, 0, 0);
+          }
+          Matrix.translateM(stripPaint, 0, -((float)width*2.0f), 0, 0);
+          Matrix.translateM(stripPaint, 0, 0, 2f, 0);
+        }
+      }
+//      for (int i = 0; i < width; i++)
+//      {
+//        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, stripFramebuffer);
+//        GLES20.glViewport(0,0, 1, height/4);
+//        renderScene();
+//        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+//        GLES20.glViewport(0,0, width, height);
+//      }
   }
 
     /**
@@ -891,20 +1043,25 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
      */
   @Override
   public void onDrawEye(Eye eye) {
-    GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
-
-    checkGLError("colorParam");
 
     // Apply the eye transformation to the camera.
     Matrix.multiplyMM(viewMatrix, 0, eye.getEyeView(), 0, camera, 0);
 
-    // Set the position of the light
-    Matrix.multiplyMV(lightPosInEyeSpace, 0, viewMatrix, 0, LIGHT_POS_IN_WORLD_SPACE, 0);
-
     // Build the ModelView and ModelViewProjection matrices
     // for calculating cube position and light.
-    float[] perspective = eye.getPerspective(Z_NEAR, Z_FAR);
+    perspective = eye.getPerspective(Z_NEAR, Z_FAR);
+
+    renderScene();
+  }
+
+  private void renderScene()
+  {
+    GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+
+    checkGLError("colorParam");
+    // Set the position of the light
+    Matrix.multiplyMV(lightPosInEyeSpace, 0, viewMatrix, 0, LIGHT_POS_IN_WORLD_SPACE, 0);
 
     if (mode>0) {
       Matrix.setIdentityM(modelCube, 0);
@@ -980,18 +1137,18 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 //    drawAxis();
 
 //    if (mode<2) {
-      //Draw the Reticle (this must be done last due to transparency)
+    //Draw the Reticle (this must be done last due to transparency)
 //      Matrix.setIdentityM(modelMatrix, 0);
 //      Matrix.translateM(modelMatrix, 0, 0, 0, -1.5f);
 //      Matrix.scaleM(modelMatrix, 0, .05f, .05f, .05f);
 //      Matrix.multiplyMM(modelMatrix, 0, invHeadView, 0, modelMatrix, 0);
-      Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelReticle, 0);
-      Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
-              modelViewMatrix, 0);
-      drawRect(reticleTexture, 1);
+    Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelReticle, 0);
+    Matrix.multiplyMM(modelViewProjection, 0, perspective, 0,
+            modelViewMatrix, 0);
+    drawRect(reticleTexture, 1);
     GLES20.glEnable(GLES20.GL_DEPTH_TEST);
 
-      GLES20.glDisable(GLES20.GL_BLEND);
+    GLES20.glDisable(GLES20.GL_BLEND);
 //    }
 
   }
@@ -1018,6 +1175,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the ModelView in the shader, used to calculate lighting
     GLES20.glUniformMatrix4fv(cubeModelViewParam, 1, false, modelViewMatrix, 0);
 
+    GLES20.glEnableVertexAttribArray(cubeNormalParam);
+    GLES20.glEnableVertexAttribArray(cubeColorParam);
+    GLES20.glEnableVertexAttribArray(cubePositionParam);
+
     // Set the position of the cube
     GLES20.glVertexAttribPointer(cubePositionParam, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
             false, 0, cubeVertices);
@@ -1028,6 +1189,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     // Set the normal positions of the cube, again for shading
     GLES20.glVertexAttribPointer(cubeNormalParam, 3, GLES20.GL_FLOAT, false, 0, cubeNormals);
     GLES20.glVertexAttribPointer(cubeColorParam, 4, GLES20.GL_FLOAT, false, 0, cubeColors);
+
 //
     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 36);
     checkGLError("Drawing cube");
@@ -1361,7 +1523,9 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
 //Use the Android GLUtils to specify a two-dimensional signTexture image from our textBitmap
 
+      checkGLError("UpdateTextTexture");
       GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
+      checkGLError("UpdateTextTexture1");
       GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0);
       checkGLError("UpdateTextTextureFinished");
     }
@@ -1450,9 +1614,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     private int mBitRate = -1;
     // parameters for the encoder
     private static final String MIME_TYPE = "video/avc";    // H.264 Advanced Video Coding
-    private static final int FRAME_RATE = 15;               // 15fps
+    private static final int FRAME_RATE = 30;               // 15fps
     private static final int IFRAME_INTERVAL = 10;          // 10 seconds between I-frames
-    private static final int NUM_FRAMES = 30;               // two seconds of video
 
     private static final File OUTPUT_DIR = Environment.getExternalStorageDirectory();
 
@@ -1695,6 +1858,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
               EGL14.EGL_ALPHA_SIZE, 8,
               EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
               EGL_RECORDABLE_ANDROID, 1,
+              EGL14.EGL_DEPTH_SIZE, 8,
               EGL14.EGL_NONE
       };
       android.opengl.EGLConfig[] configs = new android.opengl.EGLConfig[1];
