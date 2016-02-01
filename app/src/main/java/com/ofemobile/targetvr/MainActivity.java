@@ -596,8 +596,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     GLES20.glGenTextures(1, stripTextureArray, 0);
     stripTexture=stripTextureArray[0];
     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, stripTexture);
-    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 2, mVideoEncoder.height()/2, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
 
+    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 2, mVideoEncoder.height()/2, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
     GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
     GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
     GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
@@ -885,7 +885,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     mScreenEglReadSurface = EGL14.eglGetCurrentSurface(EGL14.EGL_READ);
     mScreenEglContext = EGL14.eglGetCurrentContext();
 
-    int maxVideoFrames = 60;
+    int maxVideoFrames = 1;
     if (frameNo<=maxVideoFrames) {
       //Switch to the recording context
       mVideoEncoder.inputSurface().makeCurrent();
@@ -894,17 +894,20 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       generateVideoFrame(mVideoEncoder.width(), mVideoEncoder.height());
       mVideoEncoder.inputSurface().setPresentationTime((long)(frameNo*(1000000000f/30f)));
       mVideoEncoder.inputSurface().swapBuffers();
+      //Restore the screen context
+      EGL14.eglMakeCurrent(mScreenEglDisplay, mScreenEglDrawSurface,
+              mScreenEglReadSurface, mScreenEglContext);
     }
     if (frameNo==maxVideoFrames)
     {
       mVideoEncoder.drain(true);
       mVideoEncoder.release();
       Log.i(TAG, "Recording Finished");
+      //Restore the screen context
+      EGL14.eglMakeCurrent(mScreenEglDisplay, mScreenEglDrawSurface,
+              mScreenEglReadSurface, mScreenEglContext);
     }
 
-    //Restore the screen context
-    EGL14.eglMakeCurrent(mScreenEglDisplay, mScreenEglDrawSurface,
-            mScreenEglReadSurface, mScreenEglContext);
   }
 
   public void shotFinished(int scoreDelta) {
@@ -934,8 +937,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     private void generateVideoFrame(int width, int height) {
 
       float ipd_2 = 0.06f/2f;
-      GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-      GLES20.glClearColor(0.2f, 0.0f, 0.0f, 1.0f);
+
       GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
       GLES20.glClearColor(0.1f, 0.1f, 0.1f, 0.5f);
 
@@ -943,6 +945,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Matrix.perspectiveM(perspective, 0, 90, (float)1/(float)height,0.5f,10);
 
       // Apply the eye transformation to the camera.
+      float[] eyePos = new float[16];
       float[] eye = new float[16];
       Matrix.setIdentityM(eye, 0);
       float[] halfEye = new float[16];
@@ -953,12 +956,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       Matrix.translateM(stripPaint, 0, 0, -3f, 0);
       Matrix.translateM(stripPaint, 0, -((float)width-1f), 0, 0);
 
-      float[] eyePos = new float[16];
-      Matrix.setIdentityM(eyePos, 0);
-      Matrix.translateM(eyePos, 0, 0, -3f, 0);
-
       Matrix.setIdentityM(viewMatrix, 0);
-      Matrix.multiplyMM(halfEye, 0, lookup, 0, eye, 0);
       float[] rotation = new float[16];
 
       //Pixel angular width:
@@ -1019,14 +1017,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
           Matrix.translateM(stripPaint, 0, 0, 2f, 0);
         }
       }
-//      for (int i = 0; i < width; i++)
-//      {
-//        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, stripFramebuffer);
-//        GLES20.glViewport(0,0, 1, height/4);
-//        renderScene();
-//        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-//        GLES20.glViewport(0,0, width, height);
-//      }
   }
 
     /**
