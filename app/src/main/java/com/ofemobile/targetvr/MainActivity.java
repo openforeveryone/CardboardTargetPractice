@@ -582,10 +582,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     //Setup the video surface and encoder
     mVideoEncoder = new VideoEncoder();
     //Full HD:
-    mVideoEncoder.prepare(1920, 1080, 16000000, mScreenEglContext);
+//    mVideoEncoder.prepare(1920, 1080, 16000000, mScreenEglContext);
     //4K:
-//    mVideoEncoder.prepare(3840, 2160, 40000000, mScreenEglContext);
+    mVideoEncoder.prepare(3840, 2160, 40000000, mScreenEglContext);
 
+    mVideoEncoder.inputSurface().makeCurrent();
     //Setup render to texture
     int[] stripFramebufferArray = new int[1];
     int[] stripTextureArray = new int[1];
@@ -610,7 +611,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     GLES20.glFramebufferRenderbuffer(GLES20.GL_FRAMEBUFFER, GLES20.GL_DEPTH_ATTACHMENT, GLES20.GL_RENDERBUFFER, stripDepthRenderbuffer);
     GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, stripTexture, 0);
-
 
     if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) != GLES20.GL_FRAMEBUFFER_COMPLETE) {
       Log.e(TAG, "glCheckFramebufferStatus != GL_FRAMEBUFFER_COMPLETE");
@@ -704,8 +704,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     headTransform.getForwardVector(forwardVector, 0);
 
     for(int i=0; i<3; i++)
-      projectilePos[i]+=projectileVelocity[i]/60.0f;
-    projectileVelocity[1]-=9.81/60.0f;
+      projectilePos[i]+=projectileVelocity[i]/30.0f;
+    projectileVelocity[1]-=9.81/30.0f;
 
     //Check to see if a projectile has hit a cube:
     {
@@ -869,7 +869,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     }
 
     //Autofire
-    if(frameNo==2)
+    if(frameNo%60==2)
     {
       projectilePos = new float[]{0, -.75f, 0, 1};
       projectileVelocity = new float[]{0, 4, -8, 1};
@@ -885,10 +885,11 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
     mScreenEglReadSurface = EGL14.eglGetCurrentSurface(EGL14.EGL_READ);
     mScreenEglContext = EGL14.eglGetCurrentContext();
 
-    int maxVideoFrames = 1;
+    int maxVideoFrames = 30*10;
     if (frameNo<=maxVideoFrames) {
       //Switch to the recording context
       mVideoEncoder.inputSurface().makeCurrent();
+      checkGLError("makeCurrent");
       mVideoEncoder.drain(false);
       Log.i(TAG, "Generating frame " + frameNo);
       generateVideoFrame(mVideoEncoder.width(), mVideoEncoder.height());
@@ -987,6 +988,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
 //        GLES20.glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
 //        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+
             renderScene();
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
             GLES20.glViewport(0, 0, width, height);
@@ -1574,7 +1576,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       // Output filename.  Ideally this would use Context.getFilesDir() rather than a
       // hard-coded output directory.
       String outputPath = new File(OUTPUT_DIR,
-              "test." + mWidth + "x" + mHeight + ".mp4").toString();
+              "VRVideo." + mWidth + "x" + mHeight + ".mp4").toString();
       Log.d(TAG, "output file is " + outputPath);
 
 
