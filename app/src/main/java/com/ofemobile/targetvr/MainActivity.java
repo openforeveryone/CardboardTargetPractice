@@ -150,6 +150,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
   private int stripModelViewProjectionParam;
   private int stripPositionParam;
   private int stripCoordParam;
+  private int stripReverseParam;
 
   private float[] modelCube;
   private float[] camera;
@@ -534,6 +535,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     stripModelViewProjectionParam = GLES20.glGetUniformLocation(stripProgram, "u_MVP");
     stripPositionParam = GLES20.glGetAttribLocation(stripProgram, "a_Position");
+    stripReverseParam = GLES20.glGetUniformLocation(stripProgram, "u_reverse");
     stripCoordParam = GLES20.glGetAttribLocation(stripProgram, "a_Coord");
     checkGLError("Tx program params");
 
@@ -1000,6 +1002,8 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
                     false, 0, rectVertices);
             GLES20.glVertexAttribPointer(stripCoordParam, 2, GLES20.GL_FLOAT, false, 0,
                     rectTXCoords);
+
+            GLES20.glUniform1i(stripReverseParam, upDown);
 
             GLES20.glUniformMatrix4fv(stripModelViewProjectionParam, 1, false, stripPaint, 0);
 
@@ -1576,7 +1580,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
       // Output filename.  Ideally this would use Context.getFilesDir() rather than a
       // hard-coded output directory.
       String outputPath = new File(OUTPUT_DIR,
-              "VRVideo." + mWidth + "x" + mHeight + ".mp4").toString();
+              "VRVideoCEA." + mWidth + "x" + mHeight + ".mp4").toString();
       Log.d(TAG, "output file is " + outputPath);
 
 
